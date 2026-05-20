@@ -637,6 +637,25 @@ class KBInsuranceScraper(BaseScraper):
         }
         out_path = self.debug_dir / "websquare_probe.json"
         out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # 팝업 스크린샷 + WebSquare frame HTML 저장.
+        # 계산기 본화면(담보 그리드) 전에 기초정보 입력화면(성별/나이/기간)이 먼저
+        # 뜨는데 그 화면 소스가 없어서, 실제 모습·컴포넌트를 확보하기 위함.
+        try:
+            self.page.screenshot(path=str(self.debug_dir / "websquare_popup.png"),
+                                 full_page=True)
+        except Exception as e:
+            print(f"  [screenshot 실패] {e}")
+        for info in frames:
+            if info.get("WebSquare") == "object" or info.get("scwin") == "object":
+                idx = info["frameIndex"]
+                try:
+                    html = self.page.frames[idx].content()
+                    (self.debug_dir / f"ws_frame_{idx}.html").write_text(
+                        html, encoding="utf-8")
+                except Exception as e:
+                    print(f"  [frame {idx} html 실패] {e}")
+
         print(f"  · WebSquare 진단 덤프: {out_path}")
         print(f"    popupUrl={out['popupUrl']}  frames={out['frameCount']}")
         for f in frames:
