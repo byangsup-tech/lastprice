@@ -29,17 +29,17 @@ LIST_URL = "https://www.kbinsure.co.kr/CG803000012.ec"
 # (실제 사이트 확인: 장기보험 탭에 "간편건강보험", "초경증 간편건강보험" 등이 들어 있음)
 HEALTH_KEYWORDS = ("건강", "암", "CI", "치명", "뇌", "심장", "성인병")
 
-# 1단계 스크린샷에서 확인된 구조:
-#   - URL: https://www.kbinsure.co.kr/CG803000012.ec
-#   - 탭: "자동차보험" / "장기보험(환급형장기보험)" / "일반보험(소멸성단기보험)"
-#   - 테이블 컬럼: 구분 | 상품코드 | 상품명 | [보험료계산] 버튼
-#   - 버튼 텍스트는 "보험료계산" (공백 없음)
-#   - 상품 상세페이지 없이 행의 버튼 → 바로 계산기 (팝업 추정)
+# 1·2단계 스크린샷/devtools 확인 결과:
+#   - LIST_URL 자체가 "장기보험(환급형장기보험)" 탭 페이지 → 별도 탭 클릭 불필요
+#   - 탭 구조: <ul class="tabM tabM3"><li class="on"><a href="/CG803000012.ec">...
+#   - 보험료계산 버튼: <a class="btn_white_small" onclick="openPrice(this)" title="새창">
+#     → 클릭 시 새 창(팝업) 으로 계산기 열림
+#   - 행: <td> 4개 = 구분 / 상품코드 / 상품명 / 버튼
+#     구분 컬럼은 "상해보험"으로 통일되어 있어 카테고리 필터링에 부적합 → 상품명 필터링
 SELECTORS = {
-    "tab_long_term": "text=장기보험",           # "장기보험(환급형장기보험)" 부분 매칭
-    "product_table": "table",                   # TODO: 보정 (devtools로 id/class 확인)
+    "long_term_tab_link": 'ul.tabM3 > li > a[href="/CG803000012.ec"]',
     "product_rows": "table tbody tr",
-    "calc_button_in_row": "button:has-text('보험료계산'), a:has-text('보험료계산')",
+    "calc_button_in_row": "a.btn_white_small",
     # 계산기 페이지(팝업) 내 셀렉터 — devtools 캡처 받은 뒤 보정
     "gender_male": "input[type=radio][value='M'], label:has-text('남')",
     "gender_female": "input[type=radio][value='F'], label:has-text('여')",
@@ -47,7 +47,7 @@ SELECTORS = {
     "insurance_period": "select[name*='insrPrd'], select[id*='insurance']",
     "payment_period": "select[name*='pymPrd'], select[id*='payment']",
     "waiver_checkbox": "input[type=checkbox][name*='waiv'], label:has-text('납입면제')",
-    "calculate_button": "button:has-text('보험료계산'), button:has-text('보험료 계산'), input[type=button][value*='계산']",
+    "calculate_button": "button:has-text('보험료계산'), button:has-text('보험료 계산'), input[type=button][value*='계산'], a:has-text('보험료계산')",
     "result_table": "table:has(th:has-text('보험료'))",
     "rider_rows": "table.rider tbody tr, table:has(th:has-text('특약')) tbody tr",
 }
@@ -61,18 +61,14 @@ class KBInsuranceScraper(BaseScraper):
     # 상품 목록
     # ------------------------------------------------------------------ #
     def list_health_products(self) -> list[dict]:
-        """장기보험 탭에서 건강보험 키워드가 들어간 상품을 추린다.
+        """장기보험 페이지(=base_url)에서 건강 관련 키워드가 들어간 상품을 추린다.
 
-        스크린샷 확인 결과 테이블 컬럼은 [구분 | 상품코드 | 상품명 | 보험료계산버튼] 구조.
+        테이블 컬럼: [구분 | 상품코드 | 상품명 | 보험료계산버튼].
+        구분은 모두 '상해보험'이라 필터로 부적합 → 상품명 키워드로 필터.
         """
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         self.page.wait_for_load_state("networkidle")
         self.snap("01_list_loaded")
-
-        # 장기보험(환급형장기보험) 탭 선택
-        self._click_if_visible(SELECTORS["tab_long_term"])
-        self.page.wait_for_load_state("networkidle")
-        self.snap("02_long_term_tab")
 
         products: list[dict] = []
         rows = self.page.locator(SELECTORS["product_rows"])
@@ -80,16 +76,14 @@ class KBInsuranceScraper(BaseScraper):
         for i in range(n):
             row = rows.nth(i)
             cells = row.locator("td")
-            if cells.count() < 3:
+            if cells.count() < 4:
                 continue
-            text = (row.inner_text() or "").strip()
-            if not any(k in text for k in HEALTH_KEYWORDS):
-                continue
-            code = (cells.nth(1).inner_text() or "").strip()
             name = (cells.nth(2).inner_text() or "").strip()
-            # 행 내 보험료계산 버튼이 있는 행만
+            if not any(k in name for k in HEALTH_KEYWORDS):
+                continue
             if row.locator(SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
+            code = (cells.nth(1).inner_text() or "").strip()
             products.append({"name": name, "code": code, "url": self.base_url, "row_index": i})
 
         print(f"  └ KB 건강보험 후보 {len(products)}건")
@@ -126,30 +120,25 @@ class KBInsuranceScraper(BaseScraper):
     _main_page = None  # 목록 페이지 참조 (계산기가 팝업으로 뜰 때 복귀용)
 
     def _open_calculator_from_list(self, meta: dict) -> None:
-        """목록 페이지에서 해당 행의 '보험료계산' 버튼 클릭 → 계산기 진입.
+        """목록 페이지에서 해당 행의 '보험료계산' 버튼 (onclick='openPrice(this)') 클릭.
 
-        - 새 창(팝업)으로 열리면 self.page 를 팝업으로 교체
-        - 같은 탭/모달이면 self.page 유지
+        title="새창" 이므로 항상 새 창 팝업으로 열린다.
         """
-        # 매 상품마다 목록을 다시 보장 (이전 상태 영향 방지)
-        if self.page.url != self.base_url:
+        # 매 상품마다 목록 상태를 다시 보장
+        if self.page.url.rstrip("/") != self.base_url.rstrip("/"):
             self.page.goto(self.base_url, wait_until="domcontentloaded")
-            self._click_if_visible(SELECTORS["tab_long_term"])
             self.page.wait_for_load_state("networkidle")
 
         self._main_page = self.page
         rows = self.page.locator(SELECTORS["product_rows"])
         target_btn = rows.nth(meta["row_index"]).locator(SELECTORS["calc_button_in_row"]).first
 
-        try:
-            with self.page.context.expect_page(timeout=5000) as popup_info:
-                target_btn.click()
-            popup = popup_info.value
-            popup.wait_for_load_state("domcontentloaded")
-            self.page = popup
-        except PWTimeout:
-            # 팝업이 아니라 모달/같은 탭
-            self.page.wait_for_load_state("networkidle")
+        with self.page.context.expect_page(timeout=10_000) as popup_info:
+            target_btn.click()
+        popup = popup_info.value
+        popup.wait_for_load_state("domcontentloaded")
+        popup.wait_for_load_state("networkidle")
+        self.page = popup
 
         self.snap(f"03_calc_open_{meta.get('code') or meta['name'][:15]}")
 
