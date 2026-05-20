@@ -20,10 +20,13 @@ python -m playwright install chromium
 ## 실행
 
 ```bash
-# 1단계: 셀렉터 검증 (headed 모드로 계산기 페이지까지 열고 dump)
+# 트래픽 캡처: 브라우저를 띄워 사용자가 손으로 1회 계산 → HAR/trace 기록
+python -m src.main --record
+
+# 셀렉터·프레임 검증: 계산기 팝업까지 열고 debug/ 에 진단 덤프
 python -m src.main --inspect
 
-# 2단계: 정상 수집 (headed)
+# 정상 수집 (headed)
 python -m src.main --limit 1     # 우선 1개 상품으로 검증
 python -m src.main               # 전체
 
@@ -32,6 +35,7 @@ python -m src.main --headless --delay 3
 ```
 
 결과: `output/KB손해보험.xlsx` — 상품별 시트, 행마다 특약명/최저가입금액/설계금액/월보험료.
+모든 실행은 `debug/kb.har` + `debug/trace.zip` 을 남긴다.
 
 ---
 
@@ -50,24 +54,47 @@ KB손보 계산기 팝업은 Inswave **WebSquare SPA** 다 (단순 HTML 폼/테�
    단 납입·보험기간 코드를 상품 값목록에서 라벨('20년'·'100세')로 역인덱싱하므로,
    산출 보험료가 사이트 화면과 일치하는지 확인 필요
 
-**첫 실행 절차:**
+**첫 실행 절차 (Python·인터넷 되는 PC 에서):**
 
-1. `python -m src.main --inspect` (headed) — 계산기 팝업까지 진입 후
-   `debug/KB손해보험/websquare_probe.json` + 스크린샷/HTML 덤프
-2. `websquare_probe.json` 으로 `hasScwin` / 데이터셋 행수 / 프레임 트리 확인
-3. 위 1~3 항목을 `kb_insurance.py` 의 `LIST_SELECTORS` / `WS` / `_apply_condition`
-   에서 보정
-4. `--limit 1` 로 첫 상품만 끝까지 돌려 추출 보험료가 화면과 일치하는지 확인
-5. 전체 수집으로 확장
+1. `python -m src.main --record` — 브라우저에서 상품 1개를 손으로 끝까지 계산.
+   `debug/kb.har` 에 Submission XHR 이 잡힌다 (아래 'XHR 직호출' 구현의 근거).
+2. `python -m src.main --inspect` — 계산기 팝업 진입 후
+   `debug/KB손해보험/websquare_probe.json` (frame 트리·데이터셋 도달성) 덤프.
+3. 위 두 산출물로 `kb_insurance.py` 의 `LIST_SELECTORS`/`WS`/frame 처리 보정.
+4. `--limit 1` 로 첫 상품을 끝까지 돌려 산출 보험료를 사이트 화면과 대조.
+5. 전체 수집으로 확장.
 
 `base.py::snap()` 은 각 단계마다 PNG+HTML 을 떨궈서 어디서 깨졌는지 추적하기 쉽다.
+
+---
+
+## 구현 전략 — 2단계
+
+**현재(1차): WebSquare 데이터셋 직접 조작.** `kb_insurance.py` 는 계산기 팝업을
+띄우고 WebSquare 런타임 frame 을 찾아 `ds_ltApcCvrInfoDTO` 등 데이터셋을
+`evaluate` 로 직접 쓰고 `scwin.btnSaveOnclick()` 로 보험료를 산출한다. 동작은
+하지만 WebSquare 의 modal·validation·상태머신과 부딪힐 여지가 있다.
+
+**다음(목표): Submission XHR 직호출.** WebSquare 의 서버통신은 Submission(=
+Proframe 서비스, 소스의 `SC.Proframe.Service`) 모듈을 거친다. '보험료산출' 1회를
+`--record` 로 캡처하면 `debug/kb.har` 에 그 백엔드 호출(엔드포인트·페이로드·응답)이
+남는다. 이를 분석해 `httpx` 로 직접 호출하면 셀렉터·frame·modal 의존이 사라지고
+병렬화·고속화가 가능하다. 단 상품정보→담보목록→한도→산출로 이어지는 호출
+**체인**이라 단일 POST 가 아니며, "체인 캡처 후 가변 입력(상품코드·연령·기간·
+담보별 금액)만 치환"하는 구조가 된다. 세션 쿠키는 첫 진입만 Playwright 로 받아
+`httpx` 에 넘기는 하이브리드로 해결. 데이터셋 조작 방식은 fallback 으로 유지한다.
 
 ---
 
 ## 다른 회사로 확장
 
 `src/scrapers/base.py::BaseScraper` 를 상속해 `list_health_products()` 와
-`quote_product()` 를 구현한 뒤 `src/main.py::SCRAPERS` 에 등록한다. PoC 검증이 끝나면
+`quote_product()` 를 구현한 뒤 `src/main.py::SCRAPERS` 에 등록한다. `BaseScraper`
+는 결과(상품·특약·보험료)만 추상화하고 특정 프레임워크에 의존하지 않으므로
+KB 의 WebSquare 처리 코드는 `KBInsuranceScraper` 안에만 있다.
+
+타사 추가 시 가장 먼저 확인할 것: **어떤 SPA 프레임워크인가**(WebSquare 가 아니라
+Nexacro·XPlatform 일 수 있음) → **Submission 류의 백엔드 호출 패턴이 있는가**.
 DB손보 / 삼성화재 / 현대해상을 같은 인터페이스로 추가 가능.
 
 ## 준수 정책

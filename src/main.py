@@ -4,11 +4,17 @@
   # 정상 수집 (headed 모드 권장)
   python -m src.main
 
-  # 셀렉터 검증용 inspection 모드: 계산기 페이지까지 열고 debug/ 에 덤프 후 종료
+  # 트래픽 캡처 모드: 브라우저만 띄우고, 사용자가 손으로 1회 계산하는 동안
+  # 모든 네트워크(HAR)·trace 를 debug/ 에 기록 — Submission XHR 분석용
+  python -m src.main --record
+
+  # 셀렉터/프레임 검증 inspection 모드: 계산기까지 열고 debug/ 에 덤프 후 종료
   python -m src.main --inspect
 
   # headless 운영 모드
   python -m src.main --headless
+
+모든 실행은 debug/ 에 kb.har + trace.zip 을 남긴다.
 """
 from __future__ import annotations
 
@@ -40,7 +46,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--company", default="kb", choices=sorted(SCRAPERS.keys()))
     p.add_argument("--headless", action="store_true", help="headless 모드 (기본: headed)")
     p.add_argument("--inspect", action="store_true",
-                   help="첫 상품의 계산기 페이지까지 열고 종료. 셀렉터 검증용.")
+                   help="첫 상품의 계산기 페이지까지 열고 종료. 셀렉터/프레임 검증용.")
+    p.add_argument("--record", action="store_true",
+                   help="브라우저만 띄우고 사용자가 직접 계산. 트래픽을 HAR 로 캡처.")
     p.add_argument("--limit", type=int, default=0,
                    help="처리할 상품 수 제한 (0=무제한)")
     p.add_argument("--delay", type=float, default=DEFAULT_BROWSER.delay_seconds)
@@ -55,7 +63,17 @@ def main() -> int:
     DEBUG_DIR.mkdir(exist_ok=True)
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    with launch_browser(cfg) as (_browser, _ctx, page):
+    with launch_browser(cfg, capture_dir=DEBUG_DIR) as (_browser, _ctx, page):
+        if args.record:
+            url = scraper_cls.base_url
+            print(f"[record] {url}")
+            print("  브라우저에서 직접: 상품 선택 → '보험료계산' → 조건입력 → 보험료산출")
+            print("  까지 정상 사용자처럼 1회 진행하세요. (모든 트래픽이 HAR 로 기록됨)")
+            page.goto(url)
+            input("  >> 계산을 끝낸 뒤 이 터미널에서 Enter: ")
+            print(f"[record] 저장됨 → {DEBUG_DIR}  (kb.har, trace.zip)")
+            return 0
+
         scraper: BaseScraper = scraper_cls(page=page, debug_dir=DEBUG_DIR / scraper_cls.company)
         print(f"[{scraper.company}] 상품 목록 수집 시작…")
         products_meta = scraper.list_health_products()
