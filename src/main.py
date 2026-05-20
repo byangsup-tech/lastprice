@@ -51,6 +51,8 @@ def parse_args() -> argparse.Namespace:
                    help="브라우저만 띄우고 사용자가 직접 계산. 트래픽을 HAR 로 캡처.")
     p.add_argument("--limit", type=int, default=0,
                    help="처리할 상품 수 제한 (0=무제한)")
+    p.add_argument("--product", default="",
+                   help="특정 상품코드 1건만 처리 (예: --product 24950). 키워드 필터 무시.")
     p.add_argument("--delay", type=float, default=DEFAULT_BROWSER.delay_seconds)
     return p.parse_args()
 
@@ -76,7 +78,7 @@ def main() -> int:
 
         scraper: BaseScraper = scraper_cls(page=page, debug_dir=DEBUG_DIR / scraper_cls.company)
         print(f"[{scraper.company}] 상품 목록 수집 시작…")
-        products_meta = scraper.list_health_products()
+        products_meta = scraper.list_health_products(only_code=args.product or None)
 
         if args.inspect:
             if not products_meta:

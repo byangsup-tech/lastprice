@@ -135,11 +135,13 @@ class KBInsuranceScraper(BaseScraper):
     # ------------------------------------------------------------------ #
     # 상품 목록
     # ------------------------------------------------------------------ #
-    def list_health_products(self) -> list[dict]:
-        """장기보험 목록에서 건강 관련 키워드가 든 상품을 추린다.
+    def list_health_products(self, only_code: Optional[str] = None) -> list[dict]:
+        """장기보험 목록에서 상품을 추린다.
 
         테이블 컬럼: [구분 | 상품코드 | 상품명 | 보험료계산버튼].
-        목록 화면 소스는 미확보 — LIST_SELECTORS 는 라이브 검증 대상이다.
+        only_code 가 주어지면 그 상품코드 1건만(키워드 무관), 아니면 건강 관련
+        키워드가 든 상품들을 반환한다. 목록 화면 소스는 미확보 — LIST_SELECTORS
+        는 라이브 검증 대상이다.
         """
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         self.page.wait_for_load_state("networkidle")
@@ -153,14 +155,18 @@ class KBInsuranceScraper(BaseScraper):
             if cells.count() < 4:
                 continue
             name = (cells.nth(2).inner_text() or "").strip()
-            if not any(k in name for k in HEALTH_KEYWORDS):
+            code = (cells.nth(1).inner_text() or "").strip()
+            if only_code is not None:
+                if code != only_code:
+                    continue
+            elif not any(k in name for k in HEALTH_KEYWORDS):
                 continue
             if row.locator(LIST_SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
-            code = (cells.nth(1).inner_text() or "").strip()
             products.append({"name": name, "code": code, "url": self.base_url, "row_index": i})
 
-        print(f"  └ KB 건강보험 후보 {len(products)}건")
+        label = f"상품코드 {only_code}" if only_code else "건강보험 후보"
+        print(f"  └ KB {label} {len(products)}건")
         return products
 
     # ------------------------------------------------------------------ #
@@ -528,42 +534,41 @@ class KBInsuranceScraper(BaseScraper):
             return None
 
     def _dump_websquare_state(self) -> None:
-        """--inspect 용. 팝업의 모든 frame 을 탐색해 WebSquare 런타임 위치를 덤프.
+        """--inspect 용. 팝업의 모든 frame 에서 WebSquare 접근경로를 전수 진단.
 
-        라이브 1회 실행으로 남은 가정(어느 frame 에 scwin·ds_* 가 있는지, 프레임
-        중첩, 데이터셋 표본)을 websquare_probe.json 으로 한 번에 확인한다.
+        `scwin`/`ds_*` 가 frame window 전역으로 노출되는지, 아니면 WebSquare 엔진
+        API(WebSquare.getComponentById 등)·`$p`·`SC` 로만 닿는지를 frame 별로 찍어
+        websquare_probe.json 에 남긴다. 이 결과로 _JS_WS_READY 와 _ws 의 접근
+        방식을 확정한다. (현재 evaluate 가 데이터셋에 못 닿아 _wait_websquare_ready
+        가 timeout 나는 원인을 한 번에 가려내기 위한 진단.)
         """
         probe_js = """() => {
-            var cnt = function (n) {
-                try { return window[n] ? window[n].getRowCount() : 'NONE'; }
-                catch (e) { return 'ERR'; }
-            };
-            var sc; try { sc = scwin; } catch (e) { sc = undefined; }
-            var r = {
-                url: location.href,
-                scwin: typeof sc,
-                WebSquare: (function () {
-                    try { return typeof WebSquare; } catch (e) { return 'ERR'; }
-                })(),
-                rowCounts: {
-                    ds_ltApcCvrInfoDTO: cnt('ds_ltApcCvrInfoDTO'),
-                    ds_ltApcPremDTO: cnt('ds_ltApcPremDTO'),
-                    ds_ltApcObjDtlDTO: cnt('ds_ltApcObjDtlDTO'),
-                    ds_ltApcContCndtnDTO: cnt('ds_ltApcContCndtnDTO'),
-                    ds_lngtrmContCndtnVlvalInfoDTO: cnt('ds_lngtrmContCndtnVlvalInfoDTO')
-                }
-            };
-            if (sc) {
-                r.scwinFns = {};
-                ['onchangeIptPdcd', 'btnSaveOnclick', 'setContCndtn',
-                 'setContCndtnEnable', 'btn_today_onclick'].forEach(function (n) {
-                    try { r.scwinFns[n] = typeof sc[n]; } catch (e) { r.scwinFns[n] = 'ERR'; }
+            function tryf(f) { try { return f(); } catch (e) { return 'ERR:' + e; } }
+            var r = { url: location.href };
+            r.WebSquare = typeof WebSquare;
+            r.SC = typeof SC;
+            r.$p = typeof $p;
+            r.scwin = typeof scwin;
+            r.bareDs = tryf(function () { return typeof ds_ltApcCvrInfoDTO; });
+            r.windowDs = tryf(function () {
+                return window.ds_ltApcCvrInfoDTO ? 'object' : 'absent'; });
+            if (typeof WebSquare !== 'undefined' && WebSquare) {
+                r.webSquareApi = tryf(function () {
+                    return Object.keys(WebSquare).filter(function (k) {
+                        return /component|model|dataset|getComp|getCtrl|find/i.test(k);
+                    }).slice(0, 25);
                 });
-                try {
-                    r.cvrSample = window.ds_ltApcCvrInfoDTO
-                        ? ds_ltApcCvrInfoDTO.getAllJSON().slice(0, 2) : 'NONE';
-                } catch (e) { r.cvrSample = 'ERR'; }
+                r.getComponentById = tryf(function () {
+                    if (!WebSquare.getComponentById) return 'no-fn';
+                    return WebSquare.getComponentById('ds_ltApcCvrInfoDTO') ? 'FOUND' : 'null';
+                });
             }
+            r.wsGlobals = tryf(function () {
+                return Object.keys(window).filter(function (k) {
+                    return /^(ds_|fds_|ads_|scwin|grd_|cmb_|ipt_)/.test(k);
+                }).slice(0, 40);
+            });
+            r.windowKeyCount = tryf(function () { return Object.keys(window).length; });
             return r;
         }"""
         frames = []
@@ -584,5 +589,8 @@ class KBInsuranceScraper(BaseScraper):
         out_path = self.debug_dir / "websquare_probe.json"
         out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"  · WebSquare 진단 덤프: {out_path}")
-        print(f"    popupUrl={out['popupUrl']}  frames={out['frameCount']}  "
-              f"wsFrame={out['wsFrameResolved']}")
+        print(f"    popupUrl={out['popupUrl']}  frames={out['frameCount']}")
+        for f in frames:
+            print(f"    [{f.get('frameIndex')}] WebSquare={f.get('WebSquare')} "
+                  f"scwin={f.get('scwin')} bareDs={f.get('bareDs')} "
+                  f"getComponentById={f.get('getComponentById')}")
