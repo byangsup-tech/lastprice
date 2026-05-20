@@ -124,6 +124,39 @@ _JS_CVR_LOADED = """() => {
     try { return ds_ltApcCvrInfoDTO.getRowCount() > 0; } catch (e) { return false; }
 }"""
 
+# WebSquare 런타임 frame 깊은 진단 — 데이터셋(ds_ltApcCvrInfoDTO)에 닿는 경로를
+# 모든 후보(componentsCache / modelControl / scwin.form / $p ...)로 시도해 보고한다.
+# --inspect 의 websquare_probe.json 에 deepProbe 로 들어가 _ws 접근방식 확정에 쓴다.
+_DEEP_PROBE_JS = r"""() => {
+    function safe(f) { try { return f(); } catch (e) { return 'ERR:' + String(e).slice(0, 100); } }
+    function dsInfo(o) {
+        if (!o) return 'null/absent';
+        if (typeof o.getRowCount === 'function')
+            return 'DATASET rows=' + safe(function () { return o.getRowCount(); });
+        return 'type=' + (typeof o);
+    }
+    var T = 'ds_ltApcCvrInfoDTO', out = {};
+    out.cc_total = safe(function () { return Object.keys(WebSquare.componentsCache).length; });
+    out.cc_dsKeys = safe(function () {
+        return Object.keys(WebSquare.componentsCache)
+            .filter(function (k) { return /ltApcCvrInfoDTO/.test(k); }).slice(0, 8); });
+    out.cc_direct = safe(function () { return dsInfo(WebSquare.componentsCache[T]); });
+    out.modelControl_type = safe(function () { return typeof WebSquare.modelControl; });
+    out.modelControl_keys = safe(function () {
+        return Object.keys(WebSquare.modelControl).slice(0, 25); });
+    out.ModelUtil_keys = safe(function () { return Object.keys(WebSquare.ModelUtil).slice(0, 25); });
+    out.Model_keys = safe(function () { return Object.keys(WebSquare.Model).slice(0, 25); });
+    out.p_keys = safe(function () { return Object.keys($p).slice(0, 60); });
+    out.scwin_keys = safe(function () { return Object.keys(scwin).slice(0, 80); });
+    out.scwin_form_type = safe(function () { return typeof scwin.form; });
+    out.scwin_form_ds = safe(function () { return dsInfo(scwin.form && scwin.form[T]); });
+    out.scwin_form_keys = safe(function () {
+        return scwin.form ? Object.keys(scwin.form).slice(0, 60) : 'no-form'; });
+    out.scwin_direct_ds = safe(function () { return dsInfo(scwin[T]); });
+    out.SC_keys = safe(function () { return Object.keys(SC).slice(0, 40); });
+    return out;
+}"""
+
 
 class KBInsuranceScraper(BaseScraper):
     company = "KB손해보험"
@@ -151,17 +184,21 @@ class KBInsuranceScraper(BaseScraper):
         rows = self.page.locator(LIST_SELECTORS["product_rows"])
         for i in range(rows.count()):
             row = rows.nth(i)
-            cells = row.locator("td")
-            if cells.count() < 4:
+            # 상품행 식별: '보험료계산'(openPrice) 버튼이 있는 행만 (헤더행 제외).
+            if row.locator(LIST_SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
-            name = (cells.nth(2).inner_text() or "").strip()
-            code = (cells.nth(1).inner_text() or "").strip()
+            cells = row.locator("td")
+            n = cells.count()
+            if n < 3:
+                continue
+            # 카테고리(구분) 셀은 그룹 첫 행에만 rowspan 으로 붙어, 행마다 td 수가
+            # 4(첫 행) 또는 3(나머지) 이다. 상품코드·상품명·버튼은 항상 끝 3칸.
+            code = (cells.nth(n - 3).inner_text() or "").strip()
+            name = (cells.nth(n - 2).inner_text() or "").strip()
             if only_code is not None:
                 if code != only_code:
                     continue
             elif not any(k in name for k in HEALTH_KEYWORDS):
-                continue
-            if row.locator(LIST_SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
             products.append({"name": name, "code": code, "url": self.base_url, "row_index": i})
 
@@ -580,11 +617,23 @@ class KBInsuranceScraper(BaseScraper):
             info["frameIndex"] = i
             frames.append(info)
 
+        # WebSquare 런타임 frame(scwin 보유)에 깊은 진단 — 데이터셋 접근경로 확정용
+        deep = None
+        for info in frames:
+            if info.get("scwin") == "object":
+                try:
+                    deep = self.page.frames[info["frameIndex"]].evaluate(_DEEP_PROBE_JS)
+                except Exception as e:
+                    deep = {"error": str(e)}
+                deep["frameIndex"] = info["frameIndex"]
+                break
+
         out = {
             "popupUrl": self.page.url,
             "frameCount": len(frames),
             "wsFrameResolved": self._ws_frame.url if self._ws_frame else None,
             "frames": frames,
+            "deepProbe": deep,
         }
         out_path = self.debug_dir / "websquare_probe.json"
         out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -592,5 +641,9 @@ class KBInsuranceScraper(BaseScraper):
         print(f"    popupUrl={out['popupUrl']}  frames={out['frameCount']}")
         for f in frames:
             print(f"    [{f.get('frameIndex')}] WebSquare={f.get('WebSquare')} "
-                  f"scwin={f.get('scwin')} bareDs={f.get('bareDs')} "
-                  f"getComponentById={f.get('getComponentById')}")
+                  f"scwin={f.get('scwin')} bareDs={f.get('bareDs')}")
+        if deep:
+            print(f"    deepProbe (frame {deep.get('frameIndex')}):")
+            for k in ("cc_direct", "cc_dsKeys", "scwin_form_ds", "scwin_direct_ds",
+                      "modelControl_type", "modelControl_keys"):
+                print(f"      {k} = {deep.get(k)}")
