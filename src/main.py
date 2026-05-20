@@ -66,6 +66,7 @@ def main() -> int:
                 return 1
             print(f"  · inspect: '{products_meta[0]['name']}' 계산기까지 진입")
             scraper._open_calculator_from_list(products_meta[0])  # noqa: SLF001
+            scraper._dump_websquare_state()  # noqa: SLF001
             print(f"  · debug 산출물: {scraper.debug_dir}")
             return 0
 

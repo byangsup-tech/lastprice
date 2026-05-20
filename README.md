@@ -35,19 +35,28 @@ python -m src.main --headless --delay 3
 
 ---
 
-## ⚠️ 셀렉터 보정이 필요한 이유
+## ⚠️ 계산기는 WebSquare SPA — 라이브 1회 검증 필요
 
-KB손보 사이트는 비-브라우저 요청을 차단해서 코드 작성 단계에서 DOM 구조를
-미리 확정할 수 없었다. `src/scrapers/kb_insurance.py` 상단의 `SELECTORS` 딕셔너리는
-한국 보험 공시실의 **일반적 패턴**에 근거한 초안이다.
+KB손보 계산기 팝업은 Inswave **WebSquare SPA** 다 (단순 HTML 폼/테이블이 아님).
+`src/scrapers/kb_insurance.py` 는 실제 화면 소스(CT01_0495M / CT01_0928M /
+CT01_1598M 등)를 분석해 작성했다 — 화면·데이터셋·컴포넌트 이름은 신뢰도가 높다.
+
+다만 KB 사이트는 비-브라우저 요청을 차단해 클라우드에서 사전 확인이 불가능했다.
+아래 세 가지는 라이브 `--inspect` 1회로 확인·보정해야 한다:
+
+1. **목록 페이지**(`CG803000012.ec`) 행/‘보험료계산’ 버튼 DOM — `LIST_SELECTORS`
+2. **page.evaluate 도달성** — 팝업 최상위 윈도우에서 `scwin`·`ds_*` 전역 접근 여부
+3. **피보험자 조건 입력**(성별·나이·기간, 화면 CT01_1596M) — 소스 미확보. 현재는
+   계산기에 설정된 모델 조건을 *읽어서 검증만* 한다 (불일치 시 `product.error` 기록)
 
 **첫 실행 절차:**
 
-1. `python -m src.main --inspect` 로 계산기 페이지까지 진입 (headed 권장)
-2. `debug/KB손해보험/` 에 저장된 스크린샷·HTML 을 열어보고 실제 input/select/button 의
-   `name`, `id`, 텍스트를 확인
-3. `src/scrapers/kb_insurance.py` 의 `SELECTORS` 와 `HEALTH_KEYWORDS` 를 보정
-4. `--limit 1` 로 첫 상품만 끝까지 돌려보고 추출된 보험료가 사이트 화면과 일치하는지 확인
+1. `python -m src.main --inspect` (headed) — 계산기 팝업까지 진입 후
+   `debug/KB손해보험/websquare_probe.json` + 스크린샷/HTML 덤프
+2. `websquare_probe.json` 으로 `hasScwin` / 데이터셋 행수 / 프레임 트리 확인
+3. 위 1~3 항목을 `kb_insurance.py` 의 `LIST_SELECTORS` / `WS` / `_verify_condition`
+   에서 보정
+4. `--limit 1` 로 첫 상품만 끝까지 돌려 추출 보험료가 화면과 일치하는지 확인
 5. 전체 수집으로 확장
 
 `base.py::snap()` 은 각 단계마다 PNG+HTML 을 떨궈서 어디서 깨졌는지 추적하기 쉽다.

@@ -1,23 +1,58 @@
-"""KB손해보험 보험가격공시실 스크래퍼.
+"""KB손해보험 보험가격공시실 스크래퍼 — WebSquare 계산기 기반 재작성.
 
-대상 URL: https://www.kbinsure.co.kr/CG803000012.ec  (보험가격공시-장기)
+대상 목록: https://www.kbinsure.co.kr/CG803000012.ec  (보험가격공시-장기)
+각 상품 행의 '보험료계산' 버튼(onclick=openPrice) → 계산기 팝업.
 
-⚠️  주의
-이 스크래퍼의 셀렉터는 한국 보험사 가격공시실의 일반적 UI 패턴에 근거한 초안이다.
-KB손보 사이트는 비-브라우저 요청(WebFetch/curl 등)을 차단하므로 클라우드 환경에서
-사전 DOM 확인이 불가능했다. 첫 실행은 반드시 headed 모드(BrowserConfig.headless=False)로
-하고, debug/ 디렉터리의 스크린샷·HTML 덤프를 보며 SELECTORS / TEXT_PATTERNS 상수를
-실제 사이트 구조에 맞춰 보정해야 한다.
+계산기 팝업은 Inswave WebSquare SPA 다. 업로드된 실제 화면 소스로 확인한 구조:
 
-`python -m src.main --inspect` 로 inspection 모드 실행 시
-계산기 페이지까지만 이동해 스크린샷·HTML을 남긴 뒤 종료한다.
+  CT01_0495M  장기_가격공시(PPA 셸) ── 팝업 최상위 윈도우
+   │  · #ipt_pdcd       상품코드 입력(5자리)  → scwin.onchangeIptPdcd(code)
+   │  · #cal_insBgdt    보험시작일자          → scwin.btn_today_onclick
+   │  · #div_tabContent 상품 로드 후 표시
+   │  · tab_content/content1 ▼ (iframe)
+   ├─ CT01_0928M  가입설계
+   │   │  · #btn_save   '저장(보험료산출)'   → scwin.main.btnSaveOnclick()
+   │   │  · #ipt_sumPrem 합계보험료
+   │   │  · tab_ntrDesign/content2 ▼ (iframe)
+   │   └─ CT01_1598M  계약형태 — #grd_cvr 담보·특약 그리드(가상스크롤)
+   │
+   데이터셋 (전부 최상위 CT01_0495M 윈도우 소유):
+     ds_ltApcCvrInfoDTO  전체 담보목록. 주요 컬럼:
+        cvrCd/cvrNm/cvrFullNm  담보 코드·명
+        cvrNtrCkYn             가입체크('1'=가입)
+        ntramtInputYn          가입금액 입력가능('Y')
+        achngCvrTnthwnUnitNtramt  설계 가입금액(만원 단위)
+        lowstNamt              최저가입금액(원 단위)  ← 본 PoC 의 목표값
+        bestNamt               최고가입금액(원)
+        achngCvrPrem           담보 보험료(원)
+        basicCvrYn             주계약 여부, upCvrCd  상위담보(하위담보 행 식별)
+     ds_ltApcPremDTO     보험료 합계 — sumPrem/guarntPrem/acprm/dcPrem ...
+     ds_lngtrmPrdtCmpsInfoDTO  상품정보 — prdtNm/prdtClcd
+     ds_ltApcObjDtlDTO   피보험자 — sexCd/insAge,  ds_ltApcContCndtnDTO  계약형태
+
+핵심 설계 결정
+  WebSquare 그리드는 보이는 행만 그리는 가상스크롤 캔버스라 셀 DOM 스크래핑이
+  깨지기 쉽다. 그래서 그리드 DOM 대신 WebSquare 데이터셋 API 를 page.evaluate 로
+  직접 호출한다. 그리드는 ds_ltApcCvrInfoDTO 의 '뷰'일 뿐이고, 진짜 데이터·조작
+  대상은 데이터셋이다. 상품 로드/보험료 산출도 scwin 함수를 직접 부른다.
+
+⚠️ 라이브 1회 검증 필요  (클라우드에서 KB 사이트 직접 접근이 막혀 사전 확인 불가)
+  화면/데이터셋/컴포넌트 이름은 실제 소스 기준이라 신뢰도가 높지만, 아래는
+  `python -m src.main --inspect` 로 debug/ 덤프를 보고 확인해야 한다:
+   1. CG803000012.ec 목록 행/‘보험료계산’ 버튼 DOM (LIST_SELECTORS) — 목록 화면
+      소스는 미확보. 기존 추정값 유지.
+   2. 계산기 팝업에서 page.evaluate 가 scwin·ds_* 전역에 도달하는지 (_dump 가 보고).
+   3. 성별/나이/납입·보험기간 입력 화면(CT01_1596M, contMater)은 미확보다.
+      _verify_condition() 은 계산기에 설정된 모델 피보험자 조건을 '읽어서' 보고만
+      하고, 요청 조건과 다르면 product.error 에 표시한다(틀린 값을 임의로 쓰지 않음).
 """
 from __future__ import annotations
 
-import re
+import json
+import time
 from typing import Optional
 
-from playwright.sync_api import Locator, TimeoutError as PWTimeout
+from playwright.sync_api import TimeoutError as PWTimeout
 
 from config import QuoteCondition
 from src.models import Product, Rider
@@ -25,55 +60,79 @@ from src.scrapers.base import BaseScraper
 
 LIST_URL = "https://www.kbinsure.co.kr/CG803000012.ec"
 
-# 건강보험 카테고리 키워드 — 상품명에서 필터링
-# (실제 사이트 확인: 장기보험 탭에 "간편건강보험", "초경증 간편건강보험" 등이 들어 있음)
-HEALTH_KEYWORDS = ("건강", "암", "CI", "치명", "뇌", "심장", "성인병")
+# 건강보험 카테고리 키워드 — 상품명 필터
+HEALTH_KEYWORDS = ("건강", "암", "CI", "치명", "뇌", "심장", "성인병", "간편")
 
-# 1·2단계 스크린샷/devtools 확인 결과:
-#   - LIST_URL 자체가 "장기보험(환급형장기보험)" 탭 페이지 → 별도 탭 클릭 불필요
-#   - 탭 구조: <ul class="tabM tabM3"><li class="on"><a href="/CG803000012.ec">...
-#   - 보험료계산 버튼: <a class="btn_white_small" onclick="openPrice(this)" title="새창">
-#     → 클릭 시 새 창(팝업) 으로 계산기 열림
-#   - 행: <td> 4개 = 구분 / 상품코드 / 상품명 / 버튼
-#     구분 컬럼은 "상해보험"으로 통일되어 있어 카테고리 필터링에 부적합 → 상품명 필터링
-SELECTORS = {
-    "long_term_tab_link": 'ul.tabM3 > li > a[href="/CG803000012.ec"]',
+# 목록 페이지(CG803000012.ec) DOM — 목록 화면 소스 미확보, 라이브 검증 대상.
+LIST_SELECTORS = {
     "product_rows": "table tbody tr",
-    "calc_button_in_row": "a.btn_white_small",
-    # 계산기 페이지(팝업) 내 셀렉터 — devtools 캡처 받은 뒤 보정
-    "gender_male": "input[type=radio][value='M'], label:has-text('남')",
-    "gender_female": "input[type=radio][value='F'], label:has-text('여')",
-    "age_input": "input[name*='age'], input[id*='age']",
-    "insurance_period": "select[name*='insrPrd'], select[id*='insurance']",
-    "payment_period": "select[name*='pymPrd'], select[id*='payment']",
-    "waiver_checkbox": "input[type=checkbox][name*='waiv'], label:has-text('납입면제')",
-    "calculate_button": "button:has-text('보험료계산'), button:has-text('보험료 계산'), input[type=button][value*='계산'], a:has-text('보험료계산')",
-    "result_table": "table:has(th:has-text('보험료'))",
-    "rider_rows": "table.rider tbody tr, table:has(th:has-text('특약')) tbody tr",
+    "calc_button_in_row": "a.btn_white_small, a[onclick*='openPrice']",
 }
+
+# 계산기(WebSquare) — 컴포넌트 DOM id 와 데이터셋 이름. 실제 소스 기준.
+WS = {
+    "product_code_input": "#ipt_pdcd",         # CT01_0495M 최상위 윈도우
+    "product_name_input": "#ipt_prdtNm",
+    "tab_content": "#div_tabContent",
+    "save_button": "#btn_save",                # CT01_0928M iframe 내
+    "ds_cvr": "ds_ltApcCvrInfoDTO",
+    "ds_prem": "ds_ltApcPremDTO",
+    "ds_prdt": "ds_lngtrmPrdtCmpsInfoDTO",
+    "ds_obj": "ds_ltApcObjDtlDTO",
+    "ds_cont": "ds_ltApcContCndtnDTO",
+}
+
+# ds_ltApcCvrInfoDTO 컬럼 매핑
+CVR = {
+    "code": "cvrCd",
+    "name": "cvrNm",
+    "full_name": "cvrFullNm",
+    "checked": "cvrNtrCkYn",                   # '1' = 가입
+    "amount_input": "ntramtInputYn",           # 'Y' = 가입금액 입력 담보
+    "amount": "achngCvrTnthwnUnitNtramt",      # 설계 가입금액(만원)
+    "min_amount": "lowstNamt",                 # 최저가입금액(원)
+    "premium": "achngCvrPrem",                 # 담보 보험료(원)
+    "basic": "basicCvrYn",
+    "up_code": "upCvrCd",                      # 값이 있으면 하위담보 행
+}
+
+# 계산기 팝업이 WebSquare 로 준비됐는지: 최상위 윈도우에 scwin·핵심 데이터셋 존재.
+_JS_WS_READY = """() => {
+    try {
+        return typeof scwin !== 'undefined'
+            && typeof ds_ltApcCvrInfoDTO !== 'undefined'
+            && typeof ds_ltApcPremDTO !== 'undefined';
+    } catch (e) { return false; }
+}"""
+
+# 담보목록 로드 완료: ds_ltApcCvrInfoDTO 에 행이 채워짐.
+_JS_CVR_LOADED = """() => {
+    try { return ds_ltApcCvrInfoDTO.getRowCount() > 0; } catch (e) { return false; }
+}"""
 
 
 class KBInsuranceScraper(BaseScraper):
     company = "KB손해보험"
     base_url = LIST_URL
 
+    _main_page = None  # 목록 페이지 (계산기가 팝업으로 뜰 때 복귀용)
+
     # ------------------------------------------------------------------ #
     # 상품 목록
     # ------------------------------------------------------------------ #
     def list_health_products(self) -> list[dict]:
-        """장기보험 페이지(=base_url)에서 건강 관련 키워드가 들어간 상품을 추린다.
+        """장기보험 목록에서 건강 관련 키워드가 든 상품을 추린다.
 
         테이블 컬럼: [구분 | 상품코드 | 상품명 | 보험료계산버튼].
-        구분은 모두 '상해보험'이라 필터로 부적합 → 상품명 키워드로 필터.
+        목록 화면 소스는 미확보 — LIST_SELECTORS 는 라이브 검증 대상이다.
         """
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         self.page.wait_for_load_state("networkidle")
         self.snap("01_list_loaded")
 
         products: list[dict] = []
-        rows = self.page.locator(SELECTORS["product_rows"])
-        n = rows.count()
-        for i in range(n):
+        rows = self.page.locator(LIST_SELECTORS["product_rows"])
+        for i in range(rows.count()):
             row = rows.nth(i)
             cells = row.locator("td")
             if cells.count() < 4:
@@ -81,7 +140,7 @@ class KBInsuranceScraper(BaseScraper):
             name = (cells.nth(2).inner_text() or "").strip()
             if not any(k in name for k in HEALTH_KEYWORDS):
                 continue
-            if row.locator(SELECTORS["calc_button_in_row"]).count() == 0:
+            if row.locator(LIST_SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
             code = (cells.nth(1).inner_text() or "").strip()
             products.append({"name": name, "code": code, "url": self.base_url, "row_index": i})
@@ -101,45 +160,47 @@ class KBInsuranceScraper(BaseScraper):
         )
         try:
             self._open_calculator_from_list(product_meta)
-            self._fill_condition(condition)
-            riders_meta = self._set_all_riders_to_min()
-            self._click_calculate()
-            self._read_premiums_into(product, riders_meta)
+            self._load_product(product_meta.get("code", ""))
+            self._apply_begin_date()
+            self._verify_condition(product, condition)
+            self._set_all_riders_to_min()
+            self._calculate()
+            self._read_results(product)
             self._close_calculator_if_popup()
         except PWTimeout as e:
-            product.error = f"Timeout: {e}"
+            product.error = (product.error + " | " if product.error else "") + f"Timeout: {e}"
             self.snap(f"ERR_timeout_{product.name[:20]}")
+            self._close_calculator_if_popup()
         except Exception as e:
-            product.error = f"{type(e).__name__}: {e}"
+            product.error = (product.error + " | " if product.error else "") + f"{type(e).__name__}: {e}"
             self.snap(f"ERR_{product.name[:20]}")
+            self._close_calculator_if_popup()
         return product
 
     # ------------------------------------------------------------------ #
-    # 내부 동작
+    # 계산기 진입 / 종료
     # ------------------------------------------------------------------ #
-    _main_page = None  # 목록 페이지 참조 (계산기가 팝업으로 뜰 때 복귀용)
-
     def _open_calculator_from_list(self, meta: dict) -> None:
-        """목록 페이지에서 해당 행의 '보험료계산' 버튼 (onclick='openPrice(this)') 클릭.
+        """목록 행의 '보험료계산' 버튼(onclick=openPrice) 클릭 → 계산기 팝업.
 
-        title="새창" 이므로 항상 새 창 팝업으로 열린다.
+        팝업이 WebSquare SPA(CT01_0495M) 로 준비될 때까지 대기한다.
         """
-        # 매 상품마다 목록 상태를 다시 보장
         if self.page.url.rstrip("/") != self.base_url.rstrip("/"):
             self.page.goto(self.base_url, wait_until="domcontentloaded")
             self.page.wait_for_load_state("networkidle")
 
         self._main_page = self.page
-        rows = self.page.locator(SELECTORS["product_rows"])
-        target_btn = rows.nth(meta["row_index"]).locator(SELECTORS["calc_button_in_row"]).first
+        rows = self.page.locator(LIST_SELECTORS["product_rows"])
+        target_btn = rows.nth(meta["row_index"]).locator(
+            LIST_SELECTORS["calc_button_in_row"]).first
 
-        with self.page.context.expect_page(timeout=10_000) as popup_info:
+        with self.page.context.expect_page(timeout=15_000) as popup_info:
             target_btn.click()
         popup = popup_info.value
         popup.wait_for_load_state("domcontentloaded")
-        popup.wait_for_load_state("networkidle")
         self.page = popup
 
+        self._wait_websquare_ready()
         self.snap(f"03_calc_open_{meta.get('code') or meta['name'][:15]}")
 
     def _close_calculator_if_popup(self) -> None:
@@ -151,176 +212,252 @@ class KBInsuranceScraper(BaseScraper):
             self.page = self._main_page
             self._main_page = None
 
-    def _fill_condition(self, c: QuoteCondition) -> None:
-        gender_sel = SELECTORS["gender_male"] if c.gender == "M" else SELECTORS["gender_female"]
-        self._click_if_visible(gender_sel)
+    def _wait_websquare_ready(self, timeout_ms: int = 40_000) -> None:
+        """계산기 팝업이 WebSquare 로 렌더링되고 scwin·데이터셋이 준비될 때까지 대기."""
+        self._wait_until(_JS_WS_READY, timeout_ms, "WebSquare 계산기 준비")
 
-        age_input = self.page.locator(SELECTORS["age_input"]).first
-        if age_input.count():
-            age_input.fill(str(c.age))
+    # ------------------------------------------------------------------ #
+    # 계산기 흐름
+    # ------------------------------------------------------------------ #
+    def _load_product(self, code: str) -> None:
+        """상품코드를 입력해 담보목록을 로드한다.
 
-        self._select_by_text(SELECTORS["insurance_period"], c.insurance_period)
-        self._select_by_text(SELECTORS["payment_period"], c.payment_period)
-
-        if c.premium_waiver:
-            cb = self.page.locator(SELECTORS["waiver_checkbox"]).first
-            if cb.count() and not (cb.is_checked() if self._is_input(cb) else False):
-                cb.click()
-
-        self.snap("05_condition_filled")
-
-    def _set_all_riders_to_min(self) -> list[dict]:
-        """모든 특약 행을 순회하며 (1) 체크박스 ON, (2) 가입금액을 최저가입금액으로 입력.
-
-        반환: [{'name': str, 'min_amount': int}, ...]
+        팝업이 URL 파라미터(key1=상품코드)로 이미 자동 로드된 경우 입력을 건너뛴다.
         """
-        riders: list[dict] = []
-        rider_rows = self.page.locator(SELECTORS["rider_rows"])
-        n = rider_rows.count()
-        print(f"    · 특약 후보 행 {n}개")
+        if self.page.evaluate(_JS_CVR_LOADED):
+            return  # 이미 로드됨
 
-        for i in range(n):
-            row = rider_rows.nth(i)
-            text = (row.inner_text() or "").strip()
-            if not text:
-                continue
+        inp = self.page.locator(WS["product_code_input"])
+        if code and inp.count():
+            inp.first.fill(code)
+            # oneditkeyup → onchangeIptPdcd 와 동일 경로를 직접 호출
+            self._ws(f"async () => {{ try {{ return await scwin.onchangeIptPdcd({json.dumps(code)}); }}"
+                     f" catch (e) {{ return {{error: String(e)}}; }} }}")
 
-            name = self._extract_rider_name(row, text)
-            min_amount = self._extract_min_amount(text)
+        self._wait_until(_JS_CVR_LOADED, 40_000, "상품 담보목록 로드")
+        self.snap("04_product_loaded")
 
-            # 체크박스 ON
-            cb = row.locator("input[type=checkbox]").first
-            if cb.count() and not cb.is_checked():
-                try:
-                    cb.check()
-                except Exception:
-                    cb.click()
+    def _apply_begin_date(self) -> None:
+        """보험시작일자를 오늘로 설정. btn_today_onclick 이 날짜 세팅+재계산을 처리."""
+        self._ws("""() => {
+            try {
+                if (typeof scwin !== 'undefined' && scwin.btn_today_onclick) {
+                    scwin.btn_today_onclick();
+                    return {ok: true};
+                }
+                return {ok: false, reason: 'no btn_today_onclick'};
+            } catch (e) { return {error: String(e)}; }
+        }""")
 
-            # 금액 입력 (최저가입금액 placeholder/hint 값 또는 최저값)
-            amt_input = row.locator("input[type=text], input[type=number]").first
-            if amt_input.count() and min_amount:
-                amt_input.fill(str(min_amount))
+    def _verify_condition(self, product: Product, c: QuoteCondition) -> None:
+        """계산기에 설정된 모델 피보험자/계약 조건을 읽어 요청 조건과 비교.
 
-            riders.append({"name": name, "min_amount": min_amount, "row_index": i})
+        성별·나이·납입/보험기간 입력 화면(CT01_1596M)은 미확보라 이 PoC 는 조건을
+        '쓰지' 않고 '읽어서' 검증만 한다. 불일치 시 product.error 에 기록 (잘못된
+        값으로 보험료를 산출하느니 명시적으로 드러내는 편이 안전).
+        """
+        actual = self._ws("""() => {
+            try {
+                var o = (typeof ds_ltApcObjDtlDTO !== 'undefined' && ds_ltApcObjDtlDTO.getRowCount())
+                        ? ds_ltApcObjDtlDTO.getAllJSON()[0] : {};
+                var k = (typeof ds_ltApcContCndtnDTO !== 'undefined' && ds_ltApcContCndtnDTO.getRowCount())
+                        ? ds_ltApcContCndtnDTO.getAllJSON()[0] : {};
+                return {
+                    sexCd: o.sexCd || '', insAge: o.insAge || '',
+                    pymnPrdYrcntCd: k.pymnPrdYrcntCd || '', insMtrtyYrcntCd: k.insMtrtyYrcntCd || ''
+                };
+            } catch (e) { return {error: String(e)}; }
+        }""") or {}
 
+        # sexCd 코드 규약: 보통 '1'=남 '2'=여 (라이브에서 최종 확인 필요)
+        sex_label = {"1": "M", "2": "F"}.get(str(actual.get("sexCd", "")), actual.get("sexCd", ""))
+        note = (f"계산기 모델조건 sexCd={actual.get('sexCd')}({sex_label}) "
+                f"insAge={actual.get('insAge')} "
+                f"납입={actual.get('pymnPrdYrcntCd')} 만기={actual.get('insMtrtyYrcntCd')}")
+        print(f"    · {note}")
+
+        mismatch = []
+        if sex_label and sex_label != c.gender:
+            mismatch.append(f"성별 요청{c.gender}≠계산기{sex_label}")
+        if actual.get("insAge") and str(actual["insAge"]) != str(c.age):
+            mismatch.append(f"나이 요청{c.age}≠계산기{actual['insAge']}")
+        if mismatch:
+            msg = ("조건 불일치(CT01_1596M 미확보로 자동설정 미구현): "
+                   + ", ".join(mismatch))
+            product.error = (product.error + " | " if product.error else "") + msg
+            print(f"    · ⚠️  {msg}")
+
+    def _set_all_riders_to_min(self) -> None:
+        """모든 담보를 가입체크하고 가입금액을 최저가입금액(lowstNamt)으로 설정.
+
+        ds_ltApcCvrInfoDTO(마스터 데이터셋)에 직접 쓴다. 최종 보험료는 _calculate()
+        의 btnSaveOnclick 이 데이터셋 상태 기준으로 재산출한다.
+        납입면제특약도 담보 행의 하나라 함께 가입 처리된다.
+        만원 단위: achngCvrTnthwnUnitNtramt = lowstNamt / 10000.
+        """
+        result = self._ws("""() => {
+            try {
+                var ds = ds_ltApcCvrInfoDTO, n = ds.getRowCount();
+                var checked = 0, amounted = 0;
+                for (var i = 0; i < n; i++) {
+                    var isSub = ds.getCellData(i, 'upCvrCd');
+                    if (!isSub && ds.getCellData(i, 'cvrNtrCkYn') !== '1') {
+                        ds.setCellData(i, 'cvrNtrCkYn', '1');
+                        checked++;
+                    }
+                    var low = ds.getCellData(i, 'lowstNamt');
+                    if (ds.getCellData(i, 'ntramtInputYn') === 'Y'
+                            && low != null && low !== '' && Number(low) > 0) {
+                        ds.setCellData(i, 'achngCvrTnthwnUnitNtramt',
+                                       Math.floor(Number(low) / 10000));
+                        amounted++;
+                    }
+                }
+                return {rows: n, checked: checked, amounted: amounted};
+            } catch (e) { return {error: String(e)}; }
+        }""") or {}
+        if result.get("error"):
+            raise RuntimeError(f"담보 최저가입금액 설정 실패: {result['error']}")
+        print(f"    · 담보 {result.get('rows')}행 — 가입 {result.get('checked')} / "
+              f"금액설정 {result.get('amounted')}")
         self.snap("06_riders_set_to_min")
-        return riders
 
-    def _click_calculate(self) -> None:
-        btn = self.page.locator(SELECTORS["calculate_button"]).first
-        btn.click()
-        self.page.wait_for_load_state("networkidle")
-        # 결과 테이블이 나타날 때까지 대기
-        try:
-            self.page.locator(SELECTORS["result_table"]).first.wait_for(timeout=15_000)
-        except PWTimeout:
-            pass
+    def _calculate(self) -> None:
+        """'저장(보험료산출)' 실행 → 합계보험료가 채워질 때까지 대기.
+
+        최상위 scwin.btnSaveOnclick() 직접 호출. 실패 시 CT01_0928M iframe 의
+        #btn_save 클릭으로 폴백.
+        """
+        res = self._ws("""async () => {
+            try {
+                if (typeof scwin !== 'undefined' && scwin.btnSaveOnclick) {
+                    await scwin.btnSaveOnclick();
+                    return {ok: true};
+                }
+                return {ok: false, reason: 'no btnSaveOnclick'};
+            } catch (e) { return {error: String(e)}; }
+        }""") or {}
+
+        if not res.get("ok"):
+            # 폴백: 가입설계 iframe 의 저장 버튼 클릭
+            for fr in self.page.frames:
+                if "CT01_0928M" in (fr.url or ""):
+                    btn = fr.locator(WS["save_button"])
+                    if btn.count():
+                        btn.first.click()
+                    break
+
+        # 합계보험료(ds_ltApcPremDTO.sumPrem) 가 산출될 때까지 대기
+        self._wait_until(
+            """() => { try {
+                var v = ds_ltApcPremDTO.getCellData(0, 'sumPrem');
+                return v != null && v !== '' && Number(v) > 0;
+            } catch (e) { return false; } }""",
+            45_000, "보험료 산출")
         self.snap("07_calculated")
 
-    def _read_premiums_into(self, product: Product, riders_meta: list[dict]) -> None:
-        """결과 영역에서 특약별 보험료를 읽어 product 에 채운다.
+    def _read_results(self, product: Product) -> None:
+        """ds_ltApcCvrInfoDTO / ds_ltApcPremDTO 를 읽어 product 에 채운다."""
+        data = self._ws("""() => {
+            try {
+                return {
+                    cvr: ds_ltApcCvrInfoDTO.getAllJSON(),
+                    prem: ds_ltApcPremDTO.getRowCount() ? ds_ltApcPremDTO.getAllJSON()[0] : {},
+                    prdt: (typeof ds_lngtrmPrdtCmpsInfoDTO !== 'undefined'
+                           && ds_lngtrmPrdtCmpsInfoDTO.getRowCount())
+                          ? ds_lngtrmPrdtCmpsInfoDTO.getAllJSON()[0] : {}
+                };
+            } catch (e) { return {error: String(e)}; }
+        }""") or {}
+        if data.get("error"):
+            raise RuntimeError(f"결과 데이터셋 읽기 실패: {data['error']}")
 
-        결과 표는 보통 [특약명 | 가입금액 | 보험료] 컬럼 구조.
-        """
-        result_rows = self.page.locator(SELECTORS["rider_rows"])
-        total = 0
+        prdt = data.get("prdt") or {}
+        if prdt.get("prdtNm"):
+            product.name = prdt["prdtNm"]
 
-        for meta in riders_meta:
-            row = result_rows.nth(meta["row_index"])
-            row_text = (row.inner_text() or "").strip()
-            premium = self._extract_premium(row_text)
+        for row in data.get("cvr") or []:
+            if (row.get(CVR["up_code"]) or "").strip():
+                continue  # 하위담보 행은 상위담보에 합산되므로 별도 행 생략
+            name = (row.get(CVR["full_name"]) or row.get(CVR["name"]) or "").strip()
+            if not name:
+                continue
+            min_won = self._to_int(row.get(CVR["min_amount"]))
+            amt_won = self._to_int(row.get(CVR["amount"]))
+            if amt_won is not None:
+                amt_won *= 10_000  # 만원 단위 → 원
             rider = Rider(
-                name=meta["name"],
-                min_amount=meta["min_amount"],
-                selected_amount=meta["min_amount"],
-                premium=premium,
+                name=name,
+                min_amount=min_won,
+                selected_amount=amt_won,
+                premium=self._to_int(row.get(CVR["premium"])),
+                note=("주계약" if row.get(CVR["basic"]) == "Y" else "")
+                + ("" if row.get(CVR["checked"]) == "1" else " 미가입"),
             )
             product.riders.append(rider)
-            if premium:
-                total += premium
+            if row.get(CVR["basic"]) == "Y" and product.main_premium is None:
+                product.main_coverage_amount = amt_won
+                product.main_premium = rider.premium
 
-        # 합계 라벨이 있으면 그쪽 우선
-        labeled = self._find_total_premium()
-        product.total_premium = labeled if labeled else (total or None)
+        prem = data.get("prem") or {}
+        product.total_premium = self._to_int(prem.get("sumPrem"))
+        print(f"    · 담보 {len(product.riders)}건 / 합계보험료 {product.total_premium}원")
 
     # ------------------------------------------------------------------ #
-    # 유틸
+    # WebSquare / 유틸
     # ------------------------------------------------------------------ #
-    def _click_if_visible(self, selector: str) -> bool:
-        loc = self.page.locator(selector).first
-        if loc.count() and loc.is_visible():
-            loc.click()
-            return True
-        return False
+    def _ws(self, js: str):
+        """계산기 팝업 최상위 윈도우에서 JS 평가 (page.evaluate 래퍼)."""
+        return self.page.evaluate(js)
 
-    def _select_by_text(self, selector: str, label: str) -> None:
-        loc = self.page.locator(selector).first
-        if loc.count() == 0:
-            return
-        try:
-            loc.select_option(label=label)
-        except Exception:
-            # label 매칭 실패 시 부분 매칭 시도
+    def _wait_until(self, js_bool: str, timeout_ms: int, label: str) -> None:
+        """js_bool 이 true 를 반환할 때까지 폴링."""
+        deadline = time.time() + timeout_ms / 1000
+        while time.time() < deadline:
             try:
-                opts = loc.locator("option")
-                for j in range(opts.count()):
-                    txt = (opts.nth(j).inner_text() or "").strip()
-                    if label in txt or txt in label:
-                        val = opts.nth(j).get_attribute("value")
-                        if val is not None:
-                            loc.select_option(value=val)
-                            return
+                if self.page.evaluate(js_bool):
+                    return
             except Exception:
                 pass
+            self.page.wait_for_timeout(500)
+        raise PWTimeout(f"{label}: {timeout_ms}ms 초과")
 
     @staticmethod
-    def _is_input(loc: Locator) -> bool:
+    def _to_int(val) -> Optional[int]:
+        if val is None or val == "":
+            return None
         try:
-            return (loc.evaluate("el => el.tagName") or "").upper() == "INPUT"
-        except Exception:
-            return False
+            return int(round(float(str(val).replace(",", ""))))
+        except (ValueError, TypeError):
+            return None
 
-    @staticmethod
-    def _extract_rider_name(row: Locator, fallback_text: str) -> str:
-        try:
-            label = row.locator("td").nth(0).inner_text().strip()
-            if label:
-                return label
-        except Exception:
-            pass
-        return fallback_text.split("\n", 1)[0][:80]
+    def _dump_websquare_state(self) -> None:
+        """--inspect 용. 계산기 팝업의 WebSquare 도달성·프레임·데이터셋 표본을 덤프.
 
-    @staticmethod
-    def _extract_min_amount(text: str) -> Optional[int]:
-        """텍스트에서 '최저 1,000만원', '최저가입금액 500만원' 같은 표현을 추출."""
-        m = re.search(r"최저[^0-9]{0,8}([0-9,]+)\s*만원", text)
-        if m:
-            return int(m.group(1).replace(",", "")) * 10_000
-        m = re.search(r"최저[^0-9]{0,8}([0-9,]+)\s*원", text)
-        if m:
-            return int(m.group(1).replace(",", ""))
-        return None
+        라이브 1회 실행으로 남은 가정(전역 도달성, 프레임 중첩, 컬럼값)을 한 번에
+        확인하기 위한 진단 산출물.
+        """
+        probe = self.page.evaluate("""() => {
+            var out = {hasScwin: false, datasets: {}, fns: {}};
+            try { out.hasScwin = (typeof scwin !== 'undefined'); } catch (e) {}
+            ['ds_ltApcCvrInfoDTO', 'ds_ltApcPremDTO', 'ds_lngtrmPrdtCmpsInfoDTO',
+             'ds_ltApcObjDtlDTO', 'ds_ltApcContCndtnDTO', 'ds_ltApcComnDTO'].forEach(function (n) {
+                try { out.datasets[n] = window[n] ? window[n].getRowCount() : 'undefined'; }
+                catch (e) { out.datasets[n] = 'ERR:' + e; }
+            });
+            ['onchangeIptPdcd', 'btn_today_onclick', 'btnSaveOnclick'].forEach(function (n) {
+                try { out.fns[n] = (typeof scwin !== 'undefined' && typeof scwin[n] === 'function'); }
+                catch (e) { out.fns[n] = 'ERR'; }
+            });
+            try {
+                out.cvrSample = (window.ds_ltApcCvrInfoDTO && ds_ltApcCvrInfoDTO.getRowCount())
+                    ? ds_ltApcCvrInfoDTO.getAllJSON().slice(0, 3) : [];
+            } catch (e) { out.cvrSample = 'ERR:' + e; }
+            return out;
+        }""")
+        probe["frames"] = [{"url": f.url, "name": f.name} for f in self.page.frames]
 
-    @staticmethod
-    def _extract_premium(text: str) -> Optional[int]:
-        """행 텍스트에서 '원' 단위 보험료를 추출 (보통 마지막 컬럼)."""
-        nums = re.findall(r"([0-9]{1,3}(?:,[0-9]{3})+)\s*원", text)
-        if nums:
-            return int(nums[-1].replace(",", ""))
-        nums = re.findall(r"([0-9,]+)\s*원", text)
-        if nums:
-            return int(nums[-1].replace(",", ""))
-        return None
-
-    def _find_total_premium(self) -> Optional[int]:
-        for kw in ("합계", "합계 보험료", "총 보험료", "월보험료 합계"):
-            loc = self.page.locator(f"text={kw}").first
-            if loc.count():
-                try:
-                    near = loc.locator("xpath=ancestor::tr[1]").inner_text()
-                    val = self._extract_premium(near)
-                    if val:
-                        return val
-                except Exception:
-                    continue
-        return None
+        out_path = self.debug_dir / "websquare_probe.json"
+        out_path.write_text(json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  · WebSquare 진단 덤프: {out_path}")
+        print(f"    hasScwin={probe['hasScwin']} datasets={probe['datasets']}")
