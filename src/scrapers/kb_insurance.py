@@ -1,11 +1,13 @@
 """KB손해보험 보험가격공시실 스크래퍼 — WebSquare 계산기 기반 재작성.
 
 대상 목록: https://www.kbinsure.co.kr/CG803000012.ec  (보험가격공시-장기)
-각 상품 행의 '보험료계산' 버튼(onclick=openPrice) → 계산기 팝업.
+상품 행의 '보험료계산'(openPrice) → named popup('preview')으로 loading.html 을
+띄운 뒤 ppa.kbinsure.co.kr:8500/ppa/index_ws.jsp 로 전환, 상품코드를 form-POST 로
+넘겨 WebSquare 엔진을 부팅한다(클릭한 상품이 자동 로드됨).
 
 계산기 팝업은 Inswave WebSquare SPA 다. 업로드된 실제 화면 소스로 확인한 구조:
 
-  CT01_0495M  장기_가격공시(PPA 셸) ── 팝업 최상위 윈도우
+  CT01_0495M  장기_가격공시(PPA 셸) ── 계산기 최상위 화면
    │  · #ipt_pdcd       상품코드 입력(5자리)  → scwin.onchangeIptPdcd(code)
    │  · #cal_insBgdt    보험시작일자          → scwin.btn_today_onclick
    │  · #div_tabContent 상품 로드 후 표시
@@ -18,7 +20,7 @@
        │   └─ CT01_0926M  계약형태 — cmb_0001963(납입기간) / cmb_0001966(보험기간)
        └─ tab_ntrDesign/content2 ▼  CT01_1598M  담보 — #grd_cvr 그리드(가상스크롤)
 
-   데이터셋 (전부 최상위 CT01_0495M 윈도우 소유 — 하위 iframe 은 alias 로 참조):
+   데이터셋 (전부 CT01_0495M 윈도우 소유 — 하위 iframe 은 alias 로 참조):
      ds_ltApcCvrInfoDTO  전체 담보목록. 주요 컬럼:
         cvrCd/cvrNm/cvrFullNm  담보 코드·명
         cvrNtrCkYn             가입체크('1'=가입)
@@ -37,16 +39,19 @@
 
 핵심 설계 결정
   WebSquare 그리드는 보이는 행만 그리는 가상스크롤 캔버스라 셀 DOM 스크래핑이
-  깨지기 쉽다. 그래서 그리드 DOM 대신 WebSquare 데이터셋 API 를 page.evaluate 로
-  직접 호출한다. 그리드는 ds_ltApcCvrInfoDTO 의 '뷰'일 뿐이고, 진짜 데이터·조작
-  대상은 데이터셋이다. 상품 로드/보험료 산출도 scwin 함수를 직접 부른다.
+  깨지기 쉽다. 그래서 그리드 DOM 대신 WebSquare 데이터셋 API 를 런타임 frame 의
+  evaluate 로 직접 호출한다. 그리드는 ds_ltApcCvrInfoDTO 의 '뷰'일 뿐이고, 진짜
+  데이터·조작 대상은 데이터셋이다. 상품 로드/보험료 산출도 scwin 함수를 직접 부른다.
 
-⚠️ 라이브 1회 검증 필요  (클라우드에서 KB 사이트 직접 접근이 막혀 사전 확인 불가)
+⚠️ 라이브 1회 검증 필요  (KB 계산기는 ppa.kbinsure.co.kr:8500 별도 서버라 사전확인 불가)
   화면/데이터셋/컴포넌트 이름은 실제 소스 기준이라 신뢰도가 높지만, 아래는
-  `python -m src.main --inspect` 로 debug/ 덤프를 보고 확인해야 한다:
+  `python -m src.main --inspect` 의 debug/websquare_probe.json 으로 확인한다:
    1. CG803000012.ec 목록 행/‘보험료계산’ 버튼 DOM (LIST_SELECTORS) — 목록 화면
       소스는 미확보. 기존 추정값 유지.
-   2. 계산기 팝업에서 page.evaluate 가 scwin·ds_* 전역에 도달하는지 (_dump 가 보고).
+   2. WebSquare 런타임 frame 위치. index_ws.jsp 가 엔진 iframe 을 만들 수 있어
+      scwin·ds_* 가 팝업 최상위가 아닐 수 있다 → _wait_websquare_ready() 가 모든
+      frame 을 탐색해 마스터 데이터셋(ds_ltApcCvrInfoDTO)을 가진 frame 을 _ws_frame
+      에 잡고, 이후 모든 evaluate 는 그 frame 기준으로 실행한다.
    3. 성별·나이·기간 입력은 CT01_0934M/CT01_0926M 으로 매핑 완료. _apply_condition()
       이 ds_ltApcObjDtlDTO(sexCd/insAge)·ds_ltApcContCndtnDTO(납입/만기)에 직접 쓰고
       재계산 함수를 호출한다. 단 기간 코드는 상품마다 다를 수 있어(예: '100세'가
@@ -79,7 +84,7 @@ LIST_SELECTORS = {
 
 # 계산기(WebSquare) — 컴포넌트 DOM id 와 데이터셋 이름. 실제 소스 기준.
 WS = {
-    "product_code_input": "#ipt_pdcd",         # CT01_0495M 최상위 윈도우
+    "product_code_input": "#ipt_pdcd",         # CT01_0495M 화면
     "product_name_input": "#ipt_prdtNm",
     "tab_content": "#div_tabContent",
     "save_button": "#btn_save",                # CT01_0928M iframe 내
@@ -104,7 +109,8 @@ CVR = {
     "up_code": "upCvrCd",                      # 값이 있으면 하위담보 행
 }
 
-# 계산기 팝업이 WebSquare 로 준비됐는지: 최상위 윈도우에 scwin·핵심 데이터셋 존재.
+# WebSquare 런타임 frame 식별: 마스터 데이터셋(CT01_0495M 윈도우 소유)이 있는 frame.
+# 하위 화면(CT01_0928M 등)은 alias(ads_*)만 가지므로 ds_ltApcCvrInfoDTO 로 구별된다.
 _JS_WS_READY = """() => {
     try {
         return typeof scwin !== 'undefined'
@@ -124,6 +130,7 @@ class KBInsuranceScraper(BaseScraper):
     base_url = LIST_URL
 
     _main_page = None  # 목록 페이지 (계산기가 팝업으로 뜰 때 복귀용)
+    _ws_frame = None   # WebSquare 런타임(CT01_0495M)이 사는 frame
 
     # ------------------------------------------------------------------ #
     # 상품 목록
@@ -189,29 +196,34 @@ class KBInsuranceScraper(BaseScraper):
     # 계산기 진입 / 종료
     # ------------------------------------------------------------------ #
     def _open_calculator_from_list(self, meta: dict) -> None:
-        """목록 행의 '보험료계산' 버튼(onclick=openPrice) 클릭 → 계산기 팝업.
+        """목록 행의 '보험료계산' 버튼(openPrice) 클릭 → 계산기 팝업.
 
-        팝업이 WebSquare SPA(CT01_0495M) 로 준비될 때까지 대기한다.
+        openPrice() 는 named popup('preview')을 loading.html 로 띄운 뒤
+        ppa.kbinsure.co.kr:8500/ppa/index_ws.jsp 로 전환, 상품코드를 form-POST 로
+        넘겨 WebSquare 엔진을 부팅한다(클릭한 상품이 자동 로드됨). WebSquare
+        런타임은 index_ws.jsp 의 자식 iframe 안에 있을 수 있어
+        _wait_websquare_ready() 가 frame 을 탐색한다.
         """
         if self.page.url.rstrip("/") != self.base_url.rstrip("/"):
             self.page.goto(self.base_url, wait_until="domcontentloaded")
             self.page.wait_for_load_state("networkidle")
 
         self._main_page = self.page
+        self._ws_frame = None
         rows = self.page.locator(LIST_SELECTORS["product_rows"])
         target_btn = rows.nth(meta["row_index"]).locator(
             LIST_SELECTORS["calc_button_in_row"]).first
 
-        with self.page.context.expect_page(timeout=15_000) as popup_info:
+        with self.page.context.expect_page(timeout=20_000) as popup_info:
             target_btn.click()
-        popup = popup_info.value
-        popup.wait_for_load_state("domcontentloaded")
-        self.page = popup
-
+        # 팝업: loading.html → index_ws.jsp → form-POST → WebSquare 부팅.
+        # frame 탐색 폴링이 이 네비게이션 단계를 모두 흡수한다.
+        self.page = popup_info.value
         self._wait_websquare_ready()
         self.snap(f"03_calc_open_{meta.get('code') or meta['name'][:15]}")
 
     def _close_calculator_if_popup(self) -> None:
+        self._ws_frame = None
         if self._main_page is not None and self.page is not self._main_page:
             try:
                 self.page.close()
@@ -220,22 +232,40 @@ class KBInsuranceScraper(BaseScraper):
             self.page = self._main_page
             self._main_page = None
 
-    def _wait_websquare_ready(self, timeout_ms: int = 40_000) -> None:
-        """계산기 팝업이 WebSquare 로 렌더링되고 scwin·데이터셋이 준비될 때까지 대기."""
-        self._wait_until(_JS_WS_READY, timeout_ms, "WebSquare 계산기 준비")
+    def _wait_websquare_ready(self, timeout_ms: int = 60_000) -> None:
+        """팝업의 모든 frame 을 탐색해 WebSquare 런타임 frame 을 _ws_frame 에 저장.
+
+        WebSquare 엔진은 index_ws.jsp 내부에서 iframe 을 만들 수 있어 scwin·ds_*
+        가 팝업 최상위가 아닐 수 있다. 마스터 데이터셋 ds_ltApcCvrInfoDTO 는
+        CT01_0495M 윈도우에만 있으므로(하위 화면은 alias) 그것으로 식별한다.
+        """
+        deadline = time.time() + timeout_ms / 1000
+        while time.time() < deadline:
+            for fr in list(self.page.frames):
+                try:
+                    if fr.evaluate(_JS_WS_READY):
+                        self._ws_frame = fr
+                        return
+                except Exception:
+                    continue  # 네비게이션 중 컨텍스트 파괴 등은 무시
+            self.page.wait_for_timeout(500)
+        raise PWTimeout(
+            f"WebSquare 계산기 준비: {timeout_ms}ms 초과 (팝업 URL={self.page.url})")
 
     # ------------------------------------------------------------------ #
     # 계산기 흐름
     # ------------------------------------------------------------------ #
     def _load_product(self, code: str) -> None:
-        """상품코드를 입력해 담보목록을 로드한다.
+        """담보목록이 로드될 때까지 대기.
 
-        팝업이 URL 파라미터(key1=상품코드)로 이미 자동 로드된 경우 입력을 건너뛴다.
+        팝업은 클릭한 상품을 form-POST 로 자동 로드하므로 보통 대기만 한다.
+        자동 로드가 안 된 예외 상황에서만 상품코드를 직접 입력한다.
         """
-        if self.page.evaluate(_JS_CVR_LOADED):
-            return  # 이미 로드됨
+        if self._ws(_JS_CVR_LOADED):
+            return  # form-POST 로 이미 자동 로드됨
 
-        inp = self.page.locator(WS["product_code_input"])
+        frame = self._ws_frame or self.page
+        inp = frame.locator(WS["product_code_input"])
         if code and inp.count():
             inp.first.fill(code)
             # oneditkeyup → onchangeIptPdcd 와 동일 경로를 직접 호출
@@ -262,8 +292,8 @@ class KBInsuranceScraper(BaseScraper):
 
         성별·나이는 CT01_0934M 의 cmb_sexCd / ipt_insAge → ds_ltApcObjDtlDTO,
         납입·보험기간은 CT01_0926M 의 cmb_0001963 / cmb_0001966 → ds_ltApcContCndtnDTO
-        에 바인딩돼 있고, 두 데이터셋 모두 최상위 윈도우 소유라 page.evaluate 로
-        직접 쓴다. 기간 코드는 상품마다 다를 수 있어('100세'가 '100'·'A0' 등)
+        에 바인딩돼 있고, 두 데이터셋 모두 CT01_0495M 윈도우 소유라 런타임 frame
+        에서 직접 쓴다. 기간 코드는 상품마다 다를 수 있어('100세'가 '100'·'A0' 등)
         하드코딩 대신 상품 값목록(ds_lngtrmContCndtnVlvalInfoDTO)에서 라벨로
         역인덱싱한다. 쓴 뒤 재계산 함수를 호출하고 다시 읽어 검증한다.
         납입면제특약은 별도 입력이 아니라 담보 행이므로 _set_all_riders_to_min 이 처리.
@@ -294,7 +324,7 @@ class KBInsuranceScraper(BaseScraper):
                     if (pymnCd != null) ds_ltApcContCndtnDTO.setCellData(0, 'pymnPrdYrcntCd', pymnCd);
                     if (mtrtyCd != null) ds_ltApcContCndtnDTO.setCellData(0, 'insMtrtyYrcntCd', mtrtyCd);
                 }
-                // 재계산 — 실제 onviewchange 핸들러가 호출하는 top scwin 함수들
+                // 재계산 — 실제 onviewchange 핸들러가 호출하는 scwin 함수들
                 if (typeof scwin !== 'undefined') {
                     scwin.setAutoOcpCd && scwin.setAutoOcpCd();
                     scwin.setLtigenCdFiltered && scwin.setLtigenCdFiltered();
@@ -314,7 +344,7 @@ class KBInsuranceScraper(BaseScraper):
                 };
             } catch (e) { return {error: String(e)}; }
         }"""
-        actual = self.page.evaluate(js, {
+        actual = self._ws(js, {
             "sexCd": sex_cd, "age": str(c.age),
             "pymnNum": pymn_num, "mtrtyNum": mtrty_num,
         }) or {}
@@ -380,7 +410,7 @@ class KBInsuranceScraper(BaseScraper):
     def _calculate(self) -> None:
         """'저장(보험료산출)' 실행 → 합계보험료가 채워질 때까지 대기.
 
-        최상위 scwin.btnSaveOnclick() 직접 호출. 실패 시 CT01_0928M iframe 의
+        scwin.btnSaveOnclick() 직접 호출. 실패 시 CT01_0928M iframe 의
         #btn_save 클릭으로 폴백.
         """
         res = self._ws("""async () => {
@@ -461,16 +491,17 @@ class KBInsuranceScraper(BaseScraper):
     # ------------------------------------------------------------------ #
     # WebSquare / 유틸
     # ------------------------------------------------------------------ #
-    def _ws(self, js: str):
-        """계산기 팝업 최상위 윈도우에서 JS 평가 (page.evaluate 래퍼)."""
-        return self.page.evaluate(js)
+    def _ws(self, js: str, arg=None):
+        """WebSquare 런타임 frame 에서 JS 평가 (미해결 시 팝업 최상위)."""
+        return (self._ws_frame or self.page).evaluate(js, arg)
 
     def _wait_until(self, js_bool: str, timeout_ms: int, label: str) -> None:
-        """js_bool 이 true 를 반환할 때까지 폴링."""
+        """js_bool 이 true 를 반환할 때까지 WebSquare frame 에서 폴링."""
+        target = self._ws_frame or self.page
         deadline = time.time() + timeout_ms / 1000
         while time.time() < deadline:
             try:
-                if self.page.evaluate(js_bool):
+                if target.evaluate(js_bool):
                     return
             except Exception:
                 pass
@@ -487,32 +518,61 @@ class KBInsuranceScraper(BaseScraper):
             return None
 
     def _dump_websquare_state(self) -> None:
-        """--inspect 용. 계산기 팝업의 WebSquare 도달성·프레임·데이터셋 표본을 덤프.
+        """--inspect 용. 팝업의 모든 frame 을 탐색해 WebSquare 런타임 위치를 덤프.
 
-        라이브 1회 실행으로 남은 가정(전역 도달성, 프레임 중첩, 컬럼값)을 한 번에
-        확인하기 위한 진단 산출물.
+        라이브 1회 실행으로 남은 가정(어느 frame 에 scwin·ds_* 가 있는지, 프레임
+        중첩, 데이터셋 표본)을 websquare_probe.json 으로 한 번에 확인한다.
         """
-        probe = self.page.evaluate("""() => {
-            var out = {hasScwin: false, datasets: {}, fns: {}};
-            try { out.hasScwin = (typeof scwin !== 'undefined'); } catch (e) {}
-            ['ds_ltApcCvrInfoDTO', 'ds_ltApcPremDTO', 'ds_lngtrmPrdtCmpsInfoDTO',
-             'ds_ltApcObjDtlDTO', 'ds_ltApcContCndtnDTO', 'ds_ltApcComnDTO'].forEach(function (n) {
-                try { out.datasets[n] = window[n] ? window[n].getRowCount() : 'undefined'; }
-                catch (e) { out.datasets[n] = 'ERR:' + e; }
-            });
-            ['onchangeIptPdcd', 'btn_today_onclick', 'btnSaveOnclick'].forEach(function (n) {
-                try { out.fns[n] = (typeof scwin !== 'undefined' && typeof scwin[n] === 'function'); }
-                catch (e) { out.fns[n] = 'ERR'; }
-            });
-            try {
-                out.cvrSample = (window.ds_ltApcCvrInfoDTO && ds_ltApcCvrInfoDTO.getRowCount())
-                    ? ds_ltApcCvrInfoDTO.getAllJSON().slice(0, 3) : [];
-            } catch (e) { out.cvrSample = 'ERR:' + e; }
-            return out;
-        }""")
-        probe["frames"] = [{"url": f.url, "name": f.name} for f in self.page.frames]
+        probe_js = """() => {
+            var cnt = function (n) {
+                try { return window[n] ? window[n].getRowCount() : 'NONE'; }
+                catch (e) { return 'ERR'; }
+            };
+            var sc; try { sc = scwin; } catch (e) { sc = undefined; }
+            var r = {
+                url: location.href,
+                scwin: typeof sc,
+                WebSquare: (function () {
+                    try { return typeof WebSquare; } catch (e) { return 'ERR'; }
+                })(),
+                rowCounts: {
+                    ds_ltApcCvrInfoDTO: cnt('ds_ltApcCvrInfoDTO'),
+                    ds_ltApcPremDTO: cnt('ds_ltApcPremDTO'),
+                    ds_ltApcObjDtlDTO: cnt('ds_ltApcObjDtlDTO'),
+                    ds_ltApcContCndtnDTO: cnt('ds_ltApcContCndtnDTO'),
+                    ds_lngtrmContCndtnVlvalInfoDTO: cnt('ds_lngtrmContCndtnVlvalInfoDTO')
+                }
+            };
+            if (sc) {
+                r.scwinFns = {};
+                ['onchangeIptPdcd', 'btnSaveOnclick', 'setContCndtn',
+                 'setContCndtnEnable', 'btn_today_onclick'].forEach(function (n) {
+                    try { r.scwinFns[n] = typeof sc[n]; } catch (e) { r.scwinFns[n] = 'ERR'; }
+                });
+                try {
+                    r.cvrSample = window.ds_ltApcCvrInfoDTO
+                        ? ds_ltApcCvrInfoDTO.getAllJSON().slice(0, 2) : 'NONE';
+                } catch (e) { r.cvrSample = 'ERR'; }
+            }
+            return r;
+        }"""
+        frames = []
+        for i, fr in enumerate(self.page.frames):
+            try:
+                info = fr.evaluate(probe_js)
+            except Exception as e:
+                info = {"error": str(e), "url": fr.url}
+            info["frameIndex"] = i
+            frames.append(info)
 
+        out = {
+            "popupUrl": self.page.url,
+            "frameCount": len(frames),
+            "wsFrameResolved": self._ws_frame.url if self._ws_frame else None,
+            "frames": frames,
+        }
         out_path = self.debug_dir / "websquare_probe.json"
-        out_path.write_text(json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
+        out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"  · WebSquare 진단 덤프: {out_path}")
-        print(f"    hasScwin={probe['hasScwin']} datasets={probe['datasets']}")
+        print(f"    popupUrl={out['popupUrl']}  frames={out['frameCount']}  "
+              f"wsFrame={out['wsFrameResolved']}")

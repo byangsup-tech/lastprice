@@ -65,7 +65,10 @@ def main() -> int:
                 print("  · 상품 목록을 못 잡았습니다. debug/ 의 HTML 을 확인하세요.")
                 return 1
             print(f"  · inspect: '{products_meta[0]['name']}' 계산기까지 진입")
-            scraper._open_calculator_from_list(products_meta[0])  # noqa: SLF001
+            try:
+                scraper._open_calculator_from_list(products_meta[0])  # noqa: SLF001
+            except Exception as e:
+                print(f"  · 계산기 진입 중 예외(진단 덤프는 계속): {e}")
             scraper._dump_websquare_state()  # noqa: SLF001
             print(f"  · debug 산출물: {scraper.debug_dir}")
             return 0
