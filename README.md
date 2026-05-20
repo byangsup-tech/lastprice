@@ -68,21 +68,30 @@ KB손보 계산기 팝업은 Inswave **WebSquare SPA** 다 (단순 HTML 폼/테�
 
 ---
 
-## 구현 전략 — 2단계
+## 구현 전략 — Playwright 주력, XHR 는 보조
 
-**현재(1차): WebSquare 데이터셋 직접 조작.** `kb_insurance.py` 는 계산기 팝업을
-띄우고 WebSquare 런타임 frame 을 찾아 `ds_ltApcCvrInfoDTO` 등 데이터셋을
-`evaluate` 로 직접 쓰고 `scwin.btnSaveOnclick()` 로 보험료를 산출한다. 동작은
-하지만 WebSquare 의 modal·validation·상태머신과 부딪힐 여지가 있다.
+**주력: WebSquare 데이터셋 직접 조작 (`kb_insurance.py`).** 계산기 팝업을 띄우고
+WebSquare 런타임 frame 을 찾아 `ds_ltApcCvrInfoDTO` 등 데이터셋을 `evaluate` 로
+직접 쓰고 보험료를 산출한다. 브라우저가 WebSquare 의 다단계 상태구성을 대신
+굴려주므로 그 복잡함을 그대로 위임할 수 있다.
 
-**다음(목표): Submission XHR 직호출.** WebSquare 의 서버통신은 Submission(=
-Proframe 서비스, 소스의 `SC.Proframe.Service`) 모듈을 거친다. '보험료산출' 1회를
-`--record` 로 캡처하면 `debug/kb.har` 에 그 백엔드 호출(엔드포인트·페이로드·응답)이
-남는다. 이를 분석해 `httpx` 로 직접 호출하면 셀렉터·frame·modal 의존이 사라지고
-병렬화·고속화가 가능하다. 단 상품정보→담보목록→한도→산출로 이어지는 호출
-**체인**이라 단일 POST 가 아니며, "체인 캡처 후 가변 입력(상품코드·연령·기간·
-담보별 금액)만 치환"하는 구조가 된다. 세션 쿠키는 첫 진입만 Playwright 로 받아
-`httpx` 에 넘기는 하이브리드로 해결. 데이터셋 조작 방식은 fallback 으로 유지한다.
+**Submission XHR 직호출 — 검토했으나 주력으로는 부적합.** `--record` 로 캡처한
+`debug/kb.har` 분석 결과:
+
+- 백엔드는 Proframe JSON-POST. 엔드포인트 `ppa.kbinsure.co.kr/po-21/.../WS/v1/`
+  `APP_KI/DEVON/LTIxxxxxxx`, 봉투 = `PROHEAD` + `SYSHEAD`(ssotoken 인증) + DTO.
+- 담보 카탈로그(`LTI0100403`)는 요청이 작아(상품코드+일자) 재현이 쉽다 — 단
+  응답에 최저가입금액·보험료는 비어 있다(별도 한도 서비스 필요).
+- 최종 산출(`LTI0100101`)은 수백 개 담보 전체 설계상태(≈800KB)를 통째로 보내며,
+  캡처된 호출은 저장검증 오류로 실패. 보험료는 담보별 실시간 호출(`LTI0103804`,
+  수백 회)로 들어온다.
+- 즉 "1회 캡처 후 치환"이 아니라 WebSquare 클라이언트의 상태구성 로직을 파이썬
+  으로 재구현하는 일에 가깝고 KB 의 DTO 변경에 취약하다.
+
+따라서 XHR 직호출은 주력으로 채택하지 않는다. HAR 지식은 ①담보 카탈로그 고속
+조회 ②흐름·데이터셋 검증 ③디버깅 레퍼런스로 활용한다. 또한 HAR 에서 "다담보
+설계 시 최종 저장이 막힐 수 있음"이 확인돼, `_calculate`/`_read_results` 는 합계
+미산출 시 담보별 보험료 합산으로 대체하도록 보강했다.
 
 ---
 

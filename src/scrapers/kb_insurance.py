@@ -432,13 +432,19 @@ class KBInsuranceScraper(BaseScraper):
                         btn.first.click()
                     break
 
-        # 합계보험료(ds_ltApcPremDTO.sumPrem) 가 산출될 때까지 대기
-        self._wait_until(
-            """() => { try {
-                var v = ds_ltApcPremDTO.getCellData(0, 'sumPrem');
-                return v != null && v !== '' && Number(v) > 0;
-            } catch (e) { return false; } }""",
-            45_000, "보험료 산출")
+        # 합계보험료(ds_ltApcPremDTO.sumPrem) 산출 대기.
+        # HAR 분석: 담보를 대량 설계하면 최종 저장(LTI0100101)이 검증오류로 막혀
+        # sumPrem 이 안 채워질 수 있다. 그래도 담보별 실시간 보험료(achngCvrPrem)는
+        # 이미 산출돼 있으므로, 하드 실패시키지 않고 best-effort 로만 대기한다.
+        try:
+            self._wait_until(
+                """() => { try {
+                    var v = ds_ltApcPremDTO.getCellData(0, 'sumPrem');
+                    return v != null && v !== '' && Number(v) > 0;
+                } catch (e) { return false; } }""",
+                30_000, "합계보험료 산출")
+        except PWTimeout:
+            print("    · 합계보험료 미산출 — 담보별 보험료 합산으로 대체")
         self.snap("07_calculated")
 
     def _read_results(self, product: Product) -> None:
@@ -485,7 +491,11 @@ class KBInsuranceScraper(BaseScraper):
                 product.main_premium = rider.premium
 
         prem = data.get("prem") or {}
-        product.total_premium = self._to_int(prem.get("sumPrem"))
+        total = self._to_int(prem.get("sumPrem"))
+        if not total:
+            # 합계 미산출 시 담보별 보험료 합산 (HAR: 다담보 설계는 저장검증이 막힐 수 있음)
+            total = sum(r.premium for r in product.riders if r.premium) or None
+        product.total_premium = total
         print(f"    · 담보 {len(product.riders)}건 / 합계보험료 {product.total_premium}원")
 
     # ------------------------------------------------------------------ #
