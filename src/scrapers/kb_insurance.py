@@ -10,13 +10,15 @@
    │  · #cal_insBgdt    보험시작일자          → scwin.btn_today_onclick
    │  · #div_tabContent 상품 로드 후 표시
    │  · tab_content/content1 ▼ (iframe)
-   ├─ CT01_0928M  가입설계
-   │   │  · #btn_save   '저장(보험료산출)'   → scwin.main.btnSaveOnclick()
-   │   │  · #ipt_sumPrem 합계보험료
-   │   │  · tab_ntrDesign/content2 ▼ (iframe)
-   │   └─ CT01_1598M  계약형태 — #grd_cvr 담보·특약 그리드(가상스크롤)
-   │
-   데이터셋 (전부 최상위 CT01_0495M 윈도우 소유):
+   └─ CT01_0928M  가입설계
+       │  · #btn_save     '저장(보험료산출)' → scwin.main.btnSaveOnclick()
+       │  · #ipt_sumPrem  합계보험료
+       ├─ wfm_contMater ▼  CT01_1596M (계약사항 컨테이너)
+       │   ├─ CT01_0934M  피보험자 — cmb_sexCd(성별) / ipt_insAge(나이)
+       │   └─ CT01_0926M  계약형태 — cmb_0001963(납입기간) / cmb_0001966(보험기간)
+       └─ tab_ntrDesign/content2 ▼  CT01_1598M  담보 — #grd_cvr 그리드(가상스크롤)
+
+   데이터셋 (전부 최상위 CT01_0495M 윈도우 소유 — 하위 iframe 은 alias 로 참조):
      ds_ltApcCvrInfoDTO  전체 담보목록. 주요 컬럼:
         cvrCd/cvrNm/cvrFullNm  담보 코드·명
         cvrNtrCkYn             가입체크('1'=가입)
@@ -28,7 +30,10 @@
         basicCvrYn             주계약 여부, upCvrCd  상위담보(하위담보 행 식별)
      ds_ltApcPremDTO     보험료 합계 — sumPrem/guarntPrem/acprm/dcPrem ...
      ds_lngtrmPrdtCmpsInfoDTO  상품정보 — prdtNm/prdtClcd
-     ds_ltApcObjDtlDTO   피보험자 — sexCd/insAge,  ds_ltApcContCndtnDTO  계약형태
+     ds_ltApcObjDtlDTO       피보험자 — sexCd('1'남/'2'여) / insAge(보험나이)
+     ds_ltApcContCndtnDTO    계약형태 — pymnPrdYrcntCd(납입) / insMtrtyYrcntCd(만기)
+     ds_lngtrmContCndtnVlvalInfoDTO  계약형태 값목록 — pdcrtItmId/contCndtnItmval/Nm
+                            (납입기간 pdcrtItmId=0001963, 보험기간=0001966)
 
 핵심 설계 결정
   WebSquare 그리드는 보이는 행만 그리는 가상스크롤 캔버스라 셀 DOM 스크래핑이
@@ -42,13 +47,16 @@
    1. CG803000012.ec 목록 행/‘보험료계산’ 버튼 DOM (LIST_SELECTORS) — 목록 화면
       소스는 미확보. 기존 추정값 유지.
    2. 계산기 팝업에서 page.evaluate 가 scwin·ds_* 전역에 도달하는지 (_dump 가 보고).
-   3. 성별/나이/납입·보험기간 입력 화면(CT01_1596M, contMater)은 미확보다.
-      _verify_condition() 은 계산기에 설정된 모델 피보험자 조건을 '읽어서' 보고만
-      하고, 요청 조건과 다르면 product.error 에 표시한다(틀린 값을 임의로 쓰지 않음).
+   3. 성별·나이·기간 입력은 CT01_0934M/CT01_0926M 으로 매핑 완료. _apply_condition()
+      이 ds_ltApcObjDtlDTO(sexCd/insAge)·ds_ltApcContCndtnDTO(납입/만기)에 직접 쓰고
+      재계산 함수를 호출한다. 단 기간 코드는 상품마다 다를 수 있어(예: '100세'가
+      '100' 또는 'A0') 상품 값목록에서 라벨로 역인덱싱한다 — 라이브에서 산출
+      보험료가 화면과 일치하는지 확인할 것.
 """
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Optional
 
@@ -162,7 +170,7 @@ class KBInsuranceScraper(BaseScraper):
             self._open_calculator_from_list(product_meta)
             self._load_product(product_meta.get("code", ""))
             self._apply_begin_date()
-            self._verify_condition(product, condition)
+            self._apply_condition(product, condition)
             self._set_all_riders_to_min()
             self._calculate()
             self._read_results(product)
@@ -249,41 +257,88 @@ class KBInsuranceScraper(BaseScraper):
             } catch (e) { return {error: String(e)}; }
         }""")
 
-    def _verify_condition(self, product: Product, c: QuoteCondition) -> None:
-        """계산기에 설정된 모델 피보험자/계약 조건을 읽어 요청 조건과 비교.
+    def _apply_condition(self, product: Product, c: QuoteCondition) -> None:
+        """피보험자 성별·나이와 납입·보험기간을 계산기에 설정한 뒤 검증.
 
-        성별·나이·납입/보험기간 입력 화면(CT01_1596M)은 미확보라 이 PoC 는 조건을
-        '쓰지' 않고 '읽어서' 검증만 한다. 불일치 시 product.error 에 기록 (잘못된
-        값으로 보험료를 산출하느니 명시적으로 드러내는 편이 안전).
+        성별·나이는 CT01_0934M 의 cmb_sexCd / ipt_insAge → ds_ltApcObjDtlDTO,
+        납입·보험기간은 CT01_0926M 의 cmb_0001963 / cmb_0001966 → ds_ltApcContCndtnDTO
+        에 바인딩돼 있고, 두 데이터셋 모두 최상위 윈도우 소유라 page.evaluate 로
+        직접 쓴다. 기간 코드는 상품마다 다를 수 있어('100세'가 '100'·'A0' 등)
+        하드코딩 대신 상품 값목록(ds_lngtrmContCndtnVlvalInfoDTO)에서 라벨로
+        역인덱싱한다. 쓴 뒤 재계산 함수를 호출하고 다시 읽어 검증한다.
+        납입면제특약은 별도 입력이 아니라 담보 행이므로 _set_all_riders_to_min 이 처리.
         """
-        actual = self._ws("""() => {
+        sex_cd = "1" if c.gender == "M" else "2"
+        mtrty_num = re.sub(r"[^0-9]", "", c.insurance_period)  # "100세만기" → "100"
+        pymn_num = re.sub(r"[^0-9]", "", c.payment_period)     # "20년납"   → "20"
+
+        js = """(p) => {
             try {
+                if (typeof ds_ltApcObjDtlDTO !== 'undefined' && ds_ltApcObjDtlDTO.getRowCount()) {
+                    ds_ltApcObjDtlDTO.setCellData(0, 'sexCd', p.sexCd);
+                    ds_ltApcObjDtlDTO.setCellData(0, 'insAge', p.age);
+                }
+                function resolveCode(itmId, numLabel) {
+                    if (typeof ds_lngtrmContCndtnVlvalInfoDTO === 'undefined') return null;
+                    var rows = ds_lngtrmContCndtnVlvalInfoDTO.getAllJSON();
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i].pdcrtItmId !== itmId) continue;
+                        var nm = String(rows[i].contCndtnItmvalNm || '');
+                        if (nm.replace(/[^0-9]/g, '') === numLabel) return rows[i].contCndtnItmval;
+                    }
+                    return null;
+                }
+                var pymnCd = resolveCode('0001963', p.pymnNum);
+                var mtrtyCd = resolveCode('0001966', p.mtrtyNum);
+                if (typeof ds_ltApcContCndtnDTO !== 'undefined' && ds_ltApcContCndtnDTO.getRowCount()) {
+                    if (pymnCd != null) ds_ltApcContCndtnDTO.setCellData(0, 'pymnPrdYrcntCd', pymnCd);
+                    if (mtrtyCd != null) ds_ltApcContCndtnDTO.setCellData(0, 'insMtrtyYrcntCd', mtrtyCd);
+                }
+                // 재계산 — 실제 onviewchange 핸들러가 호출하는 top scwin 함수들
+                if (typeof scwin !== 'undefined') {
+                    scwin.setAutoOcpCd && scwin.setAutoOcpCd();
+                    scwin.setLtigenCdFiltered && scwin.setLtigenCdFiltered();
+                    scwin.setCmbStrtRsrvAgeList && scwin.setCmbStrtRsrvAgeList(true);
+                    scwin.setContCndtn && scwin.setContCndtn('0001963');
+                    scwin.setContCndtn && scwin.setContCndtn('0001966');
+                    scwin.setContCndtnEnable && scwin.setContCndtnEnable();
+                }
                 var o = (typeof ds_ltApcObjDtlDTO !== 'undefined' && ds_ltApcObjDtlDTO.getRowCount())
                         ? ds_ltApcObjDtlDTO.getAllJSON()[0] : {};
                 var k = (typeof ds_ltApcContCndtnDTO !== 'undefined' && ds_ltApcContCndtnDTO.getRowCount())
                         ? ds_ltApcContCndtnDTO.getAllJSON()[0] : {};
                 return {
                     sexCd: o.sexCd || '', insAge: o.insAge || '',
-                    pymnPrdYrcntCd: k.pymnPrdYrcntCd || '', insMtrtyYrcntCd: k.insMtrtyYrcntCd || ''
+                    pymnPrdYrcntCd: k.pymnPrdYrcntCd || '', insMtrtyYrcntCd: k.insMtrtyYrcntCd || '',
+                    resolvedPymn: pymnCd, resolvedMtrty: mtrtyCd
                 };
             } catch (e) { return {error: String(e)}; }
-        }""") or {}
+        }"""
+        actual = self.page.evaluate(js, {
+            "sexCd": sex_cd, "age": str(c.age),
+            "pymnNum": pymn_num, "mtrtyNum": mtrty_num,
+        }) or {}
 
-        # sexCd 코드 규약: 보통 '1'=남 '2'=여 (라이브에서 최종 확인 필요)
-        sex_label = {"1": "M", "2": "F"}.get(str(actual.get("sexCd", "")), actual.get("sexCd", ""))
-        note = (f"계산기 모델조건 sexCd={actual.get('sexCd')}({sex_label}) "
-                f"insAge={actual.get('insAge')} "
-                f"납입={actual.get('pymnPrdYrcntCd')} 만기={actual.get('insMtrtyYrcntCd')}")
-        print(f"    · {note}")
+        if actual.get("error"):
+            msg = f"조건설정 실패: {actual['error']}"
+            product.error = (product.error + " | " if product.error else "") + msg
+            print(f"    · ⚠️  {msg}")
+            return
 
-        mismatch = []
-        if sex_label and sex_label != c.gender:
-            mismatch.append(f"성별 요청{c.gender}≠계산기{sex_label}")
-        if actual.get("insAge") and str(actual["insAge"]) != str(c.age):
-            mismatch.append(f"나이 요청{c.age}≠계산기{actual['insAge']}")
-        if mismatch:
-            msg = ("조건 불일치(CT01_1596M 미확보로 자동설정 미구현): "
-                   + ", ".join(mismatch))
+        print(f"    · 조건적용 sexCd={actual.get('sexCd')} insAge={actual.get('insAge')} "
+              f"납입={actual.get('pymnPrdYrcntCd')} 만기={actual.get('insMtrtyYrcntCd')}")
+
+        problems = []
+        if str(actual.get("sexCd")) != sex_cd:
+            problems.append(f"성별({sex_cd}≠{actual.get('sexCd')})")
+        if str(actual.get("insAge")) != str(c.age):
+            problems.append(f"나이({c.age}≠{actual.get('insAge')})")
+        if actual.get("resolvedPymn") is None:
+            problems.append(f"납입기간 '{c.payment_period}' 코드 미해석")
+        if actual.get("resolvedMtrty") is None:
+            problems.append(f"보험기간 '{c.insurance_period}' 코드 미해석")
+        if problems:
+            msg = "조건 적용 확인 필요: " + ", ".join(problems)
             product.error = (product.error + " | " if product.error else "") + msg
             print(f"    · ⚠️  {msg}")
 

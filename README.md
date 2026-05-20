@@ -38,23 +38,24 @@ python -m src.main --headless --delay 3
 ## ⚠️ 계산기는 WebSquare SPA — 라이브 1회 검증 필요
 
 KB손보 계산기 팝업은 Inswave **WebSquare SPA** 다 (단순 HTML 폼/테이블이 아님).
-`src/scrapers/kb_insurance.py` 는 실제 화면 소스(CT01_0495M / CT01_0928M /
-CT01_1598M 등)를 분석해 작성했다 — 화면·데이터셋·컴포넌트 이름은 신뢰도가 높다.
+`src/scrapers/kb_insurance.py` 는 계산기 실제 화면 소스(CT01_0495M·0928M·1596M·
+1598M·0934M·0926M 등)를 분석해 작성했다 — 화면·데이터셋·컴포넌트 이름은 신뢰도가 높다.
 
-다만 KB 사이트는 비-브라우저 요청을 차단해 클라우드에서 사전 확인이 불가능했다.
-아래 세 가지는 라이브 `--inspect` 1회로 확인·보정해야 한다:
+다만 KB 계산기 리소스는 `ppa.kbinsure.co.kr:8500` 의 별도 서버라 클라우드에서 실행
+확인이 불가능했다. 아래 세 가지는 라이브 `--inspect` 1회로 확인·보정해야 한다:
 
 1. **목록 페이지**(`CG803000012.ec`) 행/‘보험료계산’ 버튼 DOM — `LIST_SELECTORS`
 2. **page.evaluate 도달성** — 팝업 최상위 윈도우에서 `scwin`·`ds_*` 전역 접근 여부
-3. **피보험자 조건 입력**(성별·나이·기간, 화면 CT01_1596M) — 소스 미확보. 현재는
-   계산기에 설정된 모델 조건을 *읽어서 검증만* 한다 (불일치 시 `product.error` 기록)
+3. **기간 코드 해석** — 성별·나이·기간 입력은 CT01_0934M/0926M 으로 매핑 완료.
+   단 납입·보험기간 코드를 상품 값목록에서 라벨('20년'·'100세')로 역인덱싱하므로,
+   산출 보험료가 사이트 화면과 일치하는지 확인 필요
 
 **첫 실행 절차:**
 
 1. `python -m src.main --inspect` (headed) — 계산기 팝업까지 진입 후
    `debug/KB손해보험/websquare_probe.json` + 스크린샷/HTML 덤프
 2. `websquare_probe.json` 으로 `hasScwin` / 데이터셋 행수 / 프레임 트리 확인
-3. 위 1~3 항목을 `kb_insurance.py` 의 `LIST_SELECTORS` / `WS` / `_verify_condition`
+3. 위 1~3 항목을 `kb_insurance.py` 의 `LIST_SELECTORS` / `WS` / `_apply_condition`
    에서 보정
 4. `--limit 1` 로 첫 상품만 끝까지 돌려 추출 보험료가 화면과 일치하는지 확인
 5. 전체 수집으로 확장
