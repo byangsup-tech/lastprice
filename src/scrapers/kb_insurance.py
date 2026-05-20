@@ -25,22 +25,29 @@ from src.scrapers.base import BaseScraper
 
 LIST_URL = "https://www.kbinsure.co.kr/CG803000012.ec"
 
-# 건강보험 카테고리 키워드 — 상품 목록에서 필터링
+# 건강보험 카테고리 키워드 — 상품명에서 필터링
+# (실제 사이트 확인: 장기보험 탭에 "간편건강보험", "초경증 간편건강보험" 등이 들어 있음)
 HEALTH_KEYWORDS = ("건강", "암", "CI", "치명", "뇌", "심장", "성인병")
 
-# 셀렉터는 1차 실행 후 보정 필요. 가능한 한 텍스트 기반으로 사용한다.
+# 1단계 스크린샷에서 확인된 구조:
+#   - URL: https://www.kbinsure.co.kr/CG803000012.ec
+#   - 탭: "자동차보험" / "장기보험(환급형장기보험)" / "일반보험(소멸성단기보험)"
+#   - 테이블 컬럼: 구분 | 상품코드 | 상품명 | [보험료계산] 버튼
+#   - 버튼 텍스트는 "보험료계산" (공백 없음)
+#   - 상품 상세페이지 없이 행의 버튼 → 바로 계산기 (팝업 추정)
 SELECTORS = {
-    "category_long_term": "a:has-text('장기')",
+    "tab_long_term": "text=장기보험",           # "장기보험(환급형장기보험)" 부분 매칭
+    "product_table": "table",                   # TODO: 보정 (devtools로 id/class 확인)
     "product_rows": "table tbody tr",
-    "product_link": "a",
-    "calc_button": "button:has-text('보험료 계산'), a:has-text('보험료 계산')",
+    "calc_button_in_row": "button:has-text('보험료계산'), a:has-text('보험료계산')",
+    # 계산기 페이지(팝업) 내 셀렉터 — devtools 캡처 받은 뒤 보정
     "gender_male": "input[type=radio][value='M'], label:has-text('남')",
     "gender_female": "input[type=radio][value='F'], label:has-text('여')",
     "age_input": "input[name*='age'], input[id*='age']",
     "insurance_period": "select[name*='insrPrd'], select[id*='insurance']",
     "payment_period": "select[name*='pymPrd'], select[id*='payment']",
     "waiver_checkbox": "input[type=checkbox][name*='waiv'], label:has-text('납입면제')",
-    "calculate_button": "button:has-text('보험료 계산'), input[type=button][value*='계산']",
+    "calculate_button": "button:has-text('보험료계산'), button:has-text('보험료 계산'), input[type=button][value*='계산']",
     "result_table": "table:has(th:has-text('보험료'))",
     "rider_rows": "table.rider tbody tr, table:has(th:has-text('특약')) tbody tr",
 }
@@ -54,29 +61,36 @@ class KBInsuranceScraper(BaseScraper):
     # 상품 목록
     # ------------------------------------------------------------------ #
     def list_health_products(self) -> list[dict]:
+        """장기보험 탭에서 건강보험 키워드가 들어간 상품을 추린다.
+
+        스크린샷 확인 결과 테이블 컬럼은 [구분 | 상품코드 | 상품명 | 보험료계산버튼] 구조.
+        """
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         self.page.wait_for_load_state("networkidle")
         self.snap("01_list_loaded")
 
-        # 장기보험 탭/카테고리 선택. KB는 일반적으로 좌측 트리에서 [장기] 클릭.
-        self._click_if_visible(SELECTORS["category_long_term"])
+        # 장기보험(환급형장기보험) 탭 선택
+        self._click_if_visible(SELECTORS["tab_long_term"])
         self.page.wait_for_load_state("networkidle")
-        self.snap("02_long_term_selected")
+        self.snap("02_long_term_tab")
 
         products: list[dict] = []
         rows = self.page.locator(SELECTORS["product_rows"])
-        count = rows.count()
-        for i in range(count):
+        n = rows.count()
+        for i in range(n):
             row = rows.nth(i)
+            cells = row.locator("td")
+            if cells.count() < 3:
+                continue
             text = (row.inner_text() or "").strip()
             if not any(k in text for k in HEALTH_KEYWORDS):
                 continue
-            link = row.locator(SELECTORS["product_link"]).first
-            if link.count() == 0:
+            code = (cells.nth(1).inner_text() or "").strip()
+            name = (cells.nth(2).inner_text() or "").strip()
+            # 행 내 보험료계산 버튼이 있는 행만
+            if row.locator(SELECTORS["calc_button_in_row"]).count() == 0:
                 continue
-            name = (link.inner_text() or "").strip()
-            href = link.get_attribute("href") or ""
-            products.append({"name": name, "code": "", "url": href, "row_index": i})
+            products.append({"name": name, "code": code, "url": self.base_url, "row_index": i})
 
         print(f"  └ KB 건강보험 후보 {len(products)}건")
         return products
@@ -92,12 +106,12 @@ class KBInsuranceScraper(BaseScraper):
             source_url=product_meta.get("url", ""),
         )
         try:
-            self._open_product(product_meta)
-            self._open_calculator()
+            self._open_calculator_from_list(product_meta)
             self._fill_condition(condition)
             riders_meta = self._set_all_riders_to_min()
             self._click_calculate()
             self._read_premiums_into(product, riders_meta)
+            self._close_calculator_if_popup()
         except PWTimeout as e:
             product.error = f"Timeout: {e}"
             self.snap(f"ERR_timeout_{product.name[:20]}")
@@ -109,30 +123,44 @@ class KBInsuranceScraper(BaseScraper):
     # ------------------------------------------------------------------ #
     # 내부 동작
     # ------------------------------------------------------------------ #
-    def _open_product(self, meta: dict) -> None:
-        # 목록 페이지로 돌아가 해당 row 의 link 를 다시 클릭한다 (URL 직링 차단 대응).
-        self.page.goto(self.base_url, wait_until="domcontentloaded")
-        self._click_if_visible(SELECTORS["category_long_term"])
-        self.page.wait_for_load_state("networkidle")
+    _main_page = None  # 목록 페이지 참조 (계산기가 팝업으로 뜰 때 복귀용)
 
+    def _open_calculator_from_list(self, meta: dict) -> None:
+        """목록 페이지에서 해당 행의 '보험료계산' 버튼 클릭 → 계산기 진입.
+
+        - 새 창(팝업)으로 열리면 self.page 를 팝업으로 교체
+        - 같은 탭/모달이면 self.page 유지
+        """
+        # 매 상품마다 목록을 다시 보장 (이전 상태 영향 방지)
+        if self.page.url != self.base_url:
+            self.page.goto(self.base_url, wait_until="domcontentloaded")
+            self._click_if_visible(SELECTORS["tab_long_term"])
+            self.page.wait_for_load_state("networkidle")
+
+        self._main_page = self.page
         rows = self.page.locator(SELECTORS["product_rows"])
-        target = rows.nth(meta["row_index"]).locator(SELECTORS["product_link"]).first
-        target.click()
-        self.page.wait_for_load_state("networkidle")
-        self.snap(f"03_product_{meta['name'][:20]}")
+        target_btn = rows.nth(meta["row_index"]).locator(SELECTORS["calc_button_in_row"]).first
 
-    def _open_calculator(self) -> None:
-        btn = self.page.locator(SELECTORS["calc_button"]).first
-        btn.click()
-        # 보통 새 창/팝업으로 열림
         try:
-            popup = self.page.context.wait_for_event("page", timeout=5000)
+            with self.page.context.expect_page(timeout=5000) as popup_info:
+                target_btn.click()
+            popup = popup_info.value
+            popup.wait_for_load_state("domcontentloaded")
             self.page = popup
-            self.page.wait_for_load_state("domcontentloaded")
         except PWTimeout:
-            pass  # 같은 탭에서 전환된 경우
-        self.page.wait_for_load_state("networkidle")
-        self.snap("04_calculator_opened")
+            # 팝업이 아니라 모달/같은 탭
+            self.page.wait_for_load_state("networkidle")
+
+        self.snap(f"03_calc_open_{meta.get('code') or meta['name'][:15]}")
+
+    def _close_calculator_if_popup(self) -> None:
+        if self._main_page is not None and self.page is not self._main_page:
+            try:
+                self.page.close()
+            except Exception:
+                pass
+            self.page = self._main_page
+            self._main_page = None
 
     def _fill_condition(self, c: QuoteCondition) -> None:
         gender_sel = SELECTORS["gender_male"] if c.gender == "M" else SELECTORS["gender_female"]
