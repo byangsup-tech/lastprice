@@ -91,8 +91,8 @@ class KBInsuranceScraper(BaseScraper):
 
     _main_page = None   # 목록 페이지
     _ws_frame = None    # WebSquare 엔진이 사는 frame (WS_MAIN)
-    # 담보 개별산출 검증 상한 (0=전체). 무검증 v1 — 우선 소수로 메커니즘 확인.
-    CVR_VERIFY_LIMIT = 12
+    # 담보 개별산출 상한 (0=전체). 상품 24950 으로 12건 검증 완료 → 전체로 확장.
+    CVR_VERIFY_LIMIT = 0
 
     # ------------------------------------------------------------------ #
     # 상품 목록
@@ -556,7 +556,8 @@ class KBInsuranceScraper(BaseScraper):
 
         # 2) 담보별 실시간 보험료 산출 — calRtimeCvrPrem(LTI0103804) 순차 호출
         quoted = 0
-        for idx in targets:
+        total = len(targets)
+        for n, idx in enumerate(targets, start=1):
             res = self._ws("""(a) => {
                 var S = wsScope(), sc = S ? S.scwin : null;
                 var fds = wsDs('fds_ltApcCvrInfoDTO');
@@ -568,7 +569,9 @@ class KBInsuranceScraper(BaseScraper):
             if res.get("ok"):
                 quoted += 1
             self.page.wait_for_timeout(1500)  # 실시간 산출(LTI0103804) 응답 대기
-        print(f"    · {quoted}/{len(targets)}건 산출 요청 완료")
+            if n % 25 == 0 and n != total:
+                print(f"      · 산출 진행 {n}/{total}")
+        print(f"    · {quoted}/{total}건 산출 요청 완료")
         self.page.wait_for_timeout(5000)
 
         # 3) 산출 결과 진단 — limits_diag.json
