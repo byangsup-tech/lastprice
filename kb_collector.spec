@@ -35,11 +35,11 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="KB보험료수집기",
+    name="KBInsuranceCollector",
     console=True,
     disable_windowed_traceback=False,
 )
 coll = COLLECT(
     exe, a.binaries, a.datas,
-    name="KB보험료수집기",
+    name="KBInsuranceCollector",
 )

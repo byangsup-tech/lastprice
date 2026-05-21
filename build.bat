@@ -14,15 +14,15 @@ echo.
 echo - 패키징 중입니다. 수 분 걸립니다...
 pyinstaller kb_collector.spec --noconfirm --clean
 echo.
-if exist "dist\KB보험료수집기\KB보험료수집기.exe" goto DONE
+if exist "dist\KBInsuranceCollector\KBInsuranceCollector.exe" goto DONE
 echo [실패] 빌드 산출물이 없습니다. 위 로그를 확인하세요.
 echo.
 pause
 exit /b 1
 
 :DONE
-echo [완료] dist\KB보험료수집기\KB보험료수집기.exe
-echo   KB보험료수집기 폴더를 통째로 옮겨 .exe 를 더블클릭하면 실행됩니다.
+echo [완료] dist\KBInsuranceCollector\KBInsuranceCollector.exe
+echo   KBInsuranceCollector 폴더를 통째로 옮겨 .exe 를 더블클릭하면 실행됩니다.
 echo   대상 PC 에는 Chrome 설치와 KB 접속 가능한 망이 필요합니다.
 echo.
 pause
