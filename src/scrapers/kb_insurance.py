@@ -60,12 +60,26 @@ CONDITION = {
 _WS_HELPER = r"""
   function wsEl(sfx){var e=document.querySelectorAll('[id$="'+sfx+'"]');return e.length?e[0]:null;}
   function wsComp(sfx){var e=wsEl(sfx);if(!e)return null;try{return WebSquare.util.getComponentById(e.id);}catch(x){return null;}}
+  function wsScope(){
+    // 계산기 본화면(CT01_0495M)의 페이지 스코프. 데이터셋 ds_* 와 scwin 이 여기에
+    // 있다. 컴포넌트 id 의 '_wfmUrl' 까지가 그 페이지 컴포넌트 id.
+    try{
+      var any=document.querySelector('[id*="_wfmUrl_"]');
+      if(!any)return null;
+      var m=any.id.match(/^(.*?_wfmUrl)/);
+      if(!m)return null;
+      var pc=WebSquare.util.getComponentById(m[1]);
+      return (pc&&pc.scope)?pc.scope:null;
+    }catch(e){return null;}
+  }
   function wsDs(name){
+    try{var s=wsScope();if(s&&s[name]&&typeof s[name].getRowCount==='function')return s[name];}catch(e){}
     try{
       var cc=WebSquare.componentsCache;
-      var keys=Object.keys(cc).filter(function(k){return k===name||k.slice(-(name.length+1))==='_'+name;});
-      return keys.length?cc[keys[0]]:null;
-    }catch(e){return null;}
+      var ks=Object.keys(cc).filter(function(k){return k===name||k.slice(-(name.length+1))==='_'+name;});
+      for(var i=0;i<ks.length;i++){if(cc[ks[i]]&&typeof cc[ks[i]].getRowCount==='function')return cc[ks[i]];}
+    }catch(e){}
+    return null;
   }
   function wsMethods(c){var m=[];for(var k in c){try{if(typeof c[k]==='function')m.push(k);}catch(e){}}return m;}
 """
@@ -392,13 +406,56 @@ class KBInsuranceScraper(BaseScraper):
     # ------------------------------------------------------------------ #
     # ③ 담보 그리드
     # ------------------------------------------------------------------ #
-    def _wait_cvr_grid(self, timeout_ms: int = 60_000) -> None:
-        """담보 그리드 로드 대기 — ds_ltApcCvrInfoDTO 에 행이 채워질 때까지."""
-        self._wait_until(
-            """() => { try { var d = wsDs('ds_ltApcCvrInfoDTO');
-                return !!d && d.getRowCount() > 0; } catch (e) { return false; } }""",
-            timeout_ms, "담보 그리드 로드")
+    def _wait_cvr_grid(self, timeout_ms: int = 70_000) -> None:
+        """담보 그리드 로드 대기 — ds_ltApcCvrInfoDTO 에 행이 채워질 때까지.
+
+        타임아웃 시 grid_diag.json(데이터셋 접근경로·DOM 상태)과 스크린샷을 남긴다.
+        """
+        try:
+            self._wait_until(
+                """() => { try { var d = wsDs('ds_ltApcCvrInfoDTO');
+                    return !!d && d.getRowCount() > 0; } catch (e) { return false; } }""",
+                timeout_ms, "담보 그리드 로드")
+        except PWTimeout:
+            self._dump_grid_diag()
+            raise
         self.snap("06_cvr_grid")
+
+    def _dump_grid_diag(self) -> None:
+        """'다음' 클릭 후 담보 그리드 단계 진단을 grid_diag.json 에 덤프."""
+        diag = self._ws("""() => {
+            var r = {};
+            r.grdCvrDom = !!document.querySelector('[id$="_grd_cvr"]');
+            r.bodyText = (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 280);
+            try {
+                var ks = Object.keys(WebSquare.componentsCache);
+                r.ccTotal = ks.length;
+                r.ccCvrKeys = ks.filter(function (k) { return /ltApcCvrInfoDTO/.test(k); }).slice(0, 6);
+            } catch (e) { r.ccErr = '' + e; }
+            var sc = wsScope();
+            r.scopeFound = !!sc;
+            if (sc) {
+                try {
+                    r.scopeKeys = Object.keys(sc).filter(function (k) {
+                        return /ltApc|scwin/i.test(k); }).slice(0, 20);
+                } catch (e) {}
+                try {
+                    var d = sc.ds_ltApcCvrInfoDTO;
+                    r.cvrViaScope = d ? ('rows=' + d.getRowCount()) : 'absent';
+                } catch (e) { r.cvrViaScope = 'ERR:' + e; }
+            }
+            r.modelUtilGetById = (typeof WebSquare.ModelUtil !== 'undefined'
+                && typeof WebSquare.ModelUtil.getModelByID === 'function');
+            return r;
+        }""") or {}
+        (self.debug_dir / "grid_diag.json").write_text(
+            json.dumps(diag, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            self.page.screenshot(path=str(self.debug_dir / "grid_stage.png"), full_page=True)
+        except Exception:
+            pass
+        print(f"    · 그리드 진단 → grid_diag.json (grd_cvr DOM={diag.get('grdCvrDom')}, "
+              f"scope={diag.get('scopeFound')}, cvrViaScope={diag.get('cvrViaScope')})")
 
     def _set_all_riders_to_min(self) -> None:
         """전 담보를 가입체크하고 가입금액을 최저가입금액(lowstNamt)으로 설정."""
@@ -429,8 +486,7 @@ class KBInsuranceScraper(BaseScraper):
         """보험료 산출 — scwin.btnSaveOnclick 호출 후 합계 산출 대기(best-effort)."""
         self._ws("""() => {
             try {
-                var sc = (wsComp('_btn_saveText') || {}).scwin
-                    || (typeof scwin !== 'undefined' ? scwin : null);
+                var sc = wsScope() ? wsScope().scwin : null;
                 if (sc && sc.btnSaveOnclick) { sc.btnSaveOnclick(); return {ok: true}; }
             } catch (e) {}
             var el = wsEl('_btn_saveText'); if (el) { el.click(); return {ok: 'dom'}; }
