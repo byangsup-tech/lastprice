@@ -41,7 +41,7 @@ LIST_SELECTORS = {
 # 조건입력 화면 고정값 (사용자 예시 스크린샷 기준). select/radio 는 라벨 부분일치로
 # 매칭하므로 상품마다 코드가 달라도 동작한다.
 CONDITION = {
-    "sex_value": "1",                  # cmb_sexCd : 1=남 2=여
+    "sex_label": "남",                  # cmb_sexCd 옵션 라벨 (남/여)
     "age": "40",                       # ipt_insAge
     "occupation_query": "사무직",       # ipt_ocptCdNm 자동완성 검색어
     "drivType_label": "자가용",         # cmb_drivTdcd
@@ -233,8 +233,8 @@ class KBInsuranceScraper(BaseScraper):
         # select/radio 옵션이 비동기로 채워질 시간을 준다
         self.page.wait_for_timeout(3000)
         diag = []
-        diag.append(self._ws_set_value("_cmb_sexCd", CONDITION["sex_value"], "성별"))
-        diag.append(self._ws_set_value("_ipt_insAge", CONDITION["age"], "나이"))
+        diag.append(self._fill_combo("성별", CONDITION["sex_label"], suffix="_cmb_sexCd"))
+        diag.append(self._fill_age(CONDITION["age"]))
         diag.append(self._fill_combo("운전형태", CONDITION["drivType_label"],
                                      suffix="_cmb_drivTdcd"))
         diag.append(self._fill_combo("심사고지유형", CONDITION["uwType_label"],
@@ -258,20 +258,33 @@ class KBInsuranceScraper(BaseScraper):
             product.error = (product.error + " | " if product.error else "") \
                 + f"조건입력 일부 실패 ({len(diag) - ok}건)"
 
-    def _ws_set_value(self, suffix: str, value: str, field: str) -> dict:
-        """suffix 로 컴포넌트를 찾아 setValue(value)."""
-        r = self._ws("""(a) => {
-            var c = wsComp(a.s), r = {field: a.f, suffix: a.s, found: !!c};
-            if (!c) { r.elExists = !!wsEl(a.s); return r; }
-            r.methods = wsMethods(c).slice(0, 30);
-            try { r.before = c.getValue(); } catch (e) {}
-            try { c.setValue(a.v); r.set = true; } catch (e) { r.setErr = '' + e; }
-            try { r.after = c.getValue(); } catch (e) {}
-            return r;
-        }""", {"s": suffix, "v": value, "f": field}) or {}
-        r["ok"] = r.get("set") is True and str(r.get("after", "")) != ""
-        r["detail"] = r.get("setErr") or (f"after={r.get('after')}" if r["ok"]
-                                          else f"found={r.get('found')} {r.get('setErr','')}")
+    def _fill_age(self, age: str) -> dict:
+        """나이 입력 — ipt_insAge 에 실제 DOM 입력 후 Tab 으로 onviewchange 발생.
+
+        컴포넌트 setValue 만으론 변경 이벤트가 안 떠 ds_ltApcObjDtlDTO 동기화·
+        검증통과가 안 된다('나이 필수입력' 경고). 실제 입력 이벤트를 발생시키고,
+        데이터셋에 값이 반영됐는지 확인한다.
+        """
+        r = {"field": "나이"}
+        try:
+            inp = self._ws_frame.locator('[id$="_ipt_insAge"]').first
+            if inp.count() == 0:
+                r["ok"], r["detail"] = False, "ipt_insAge 없음"
+                return r
+            inp.click()
+            inp.fill(str(age))
+            inp.press("Tab")  # blur → change/onviewchange → 데이터셋 동기화
+            self._ws_frame.wait_for_timeout(800)
+            val = self._ws("""() => {
+                try {
+                    var s = wsScope(), ds = s ? s.ds_ltApcObjDtlDTO : null;
+                    return (ds && ds.getRowCount()) ? ds.getCellData(0, 'insAge') : 'no-ds';
+                } catch (e) { return 'ERR'; }
+            }""")
+            r["ok"] = str(val) == str(age)
+            r["detail"] = f"ds_ltApcObjDtlDTO.insAge={val}"
+        except Exception as e:
+            r["ok"], r["detail"] = False, f"{type(e).__name__}: {e}"
         return r
 
     def _fill_combo(self, field: str, label: str,
@@ -312,18 +325,20 @@ class KBInsuranceScraper(BaseScraper):
             return r
         self._ws_frame.wait_for_timeout(700)
         pick = self._ws("""(a) => {
-            var hits = [], cand = [];
+            var exact = [], partial = [], cand = [];
             document.querySelectorAll('li, td, a, span, div').forEach(function (n) {
                 var t = (n.innerText || n.textContent || '').trim();
                 if (!t || t.length > 50 || t.indexOf(a.label) < 0) return;
                 if (n.querySelector('li, td, a, span, div')) return;   // leaf 만
                 if (n.offsetParent === null) return;                   // 보이는 것만
                 cand.push({tag: n.tagName, cls: (n.className || '').slice(0, 40), text: t});
-                hits.push(n);
+                (t === a.label ? exact : partial).push(n);
             });
+            var hits = exact.length ? exact : partial;   // 정확일치 우선
             if (hits.length) {
                 hits[hits.length - 1].click();
-                return {ok: true, picked: cand[cand.length - 1], count: hits.length};
+                return {ok: true, picked: hits[hits.length - 1].textContent.trim(),
+                        exact: exact.length, partial: partial.length};
             }
             return {ok: false, candidates: cand.slice(0, 20)};
         }""", {"label": label}) or {}
