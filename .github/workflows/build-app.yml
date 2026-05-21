@@ -1,0 +1,45 @@
+name: build-app
+
+# Windows .exe / macOS .app 를 클라우드에서 빌드한다.
+# 작업 브랜치에 push 하면 자동 실행되고, Actions 탭에서 수동 실행도 가능하다.
+# 결과물은 각 실행의 Artifacts 에서 내려받는다.
+
+on:
+  push:
+    branches: ["claude/fix-calculator-selectors-V1JZN"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: KBInsuranceCollector-windows
+          - os: macos-latest
+            artifact: KBInsuranceCollector-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build
+        run: pyinstaller kb_collector.spec --noconfirm --clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist
