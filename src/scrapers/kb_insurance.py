@@ -47,7 +47,7 @@ CONDITION = {
     "drivType_label": "자가용",         # cmb_drivTdcd
     "uwType_label": "간편심사",         # 심사고지유형
     "waiver_label": "6대 납입면제",      # 납입면제
-    "plan_label": "간편심사",           # 플랜(라디오)
+    "plan_label": "간편심사형",         # 플랜(라디오)
     "payYears_label": "20년",          # 납기(라디오)
     "maturity_label": "100세",         # 만기(라디오)
 }
@@ -142,6 +142,8 @@ class KBInsuranceScraper(BaseScraper):
             self.snap(f"ERR_{product.name[:20]}")
         finally:
             self._close_calculator_if_popup()
+        if product.error:
+            print(f"    ✗ 오류: {product.error}")
         return product
 
     # ------------------------------------------------------------------ #
@@ -213,21 +215,17 @@ class KBInsuranceScraper(BaseScraper):
         (무검증 작성분이라 어느 필드가 실패했는지 1회 실행으로 보려는 목적).
         select/radio 는 컴포넌트의 옵션을 열거해 라벨 부분일치로 값을 고른다.
         """
+        # select/radio 옵션이 비동기로 채워질 시간을 준다
+        self.page.wait_for_timeout(3000)
         diag = []
-
-        # 성별 — 값이 '1'/'2' 로 확정이라 직접 setValue
         diag.append(self._ws_set_value("_cmb_sexCd", CONDITION["sex_value"], "성별"))
-        # 나이 — 입력창
         diag.append(self._ws_set_value("_ipt_insAge", CONDITION["age"], "나이"))
-        # select / radio — 라벨 부분일치
-        diag.append(self._ws_set_by_label("_cmb_drivTdcd", CONDITION["drivType_label"], "운전형태"))
-        diag.append(self._ws_set_by_label("_rdo_0001963", CONDITION["payYears_label"], "납기"))
-        diag.append(self._ws_set_by_label("_rdo_0001966", CONDITION["maturity_label"], "만기"))
-        # 심사고지유형·납입면제·플랜 — 논리 id 가 상품별 동적이라 라벨로 컴포넌트 탐색
-        diag.append(self._ws_set_label_anycombo(CONDITION["uwType_label"], "심사고지유형"))
-        diag.append(self._ws_set_label_anycombo(CONDITION["waiver_label"], "납입면제"))
-        diag.append(self._ws_set_label_anyradio(CONDITION["plan_label"], "플랜"))
-        # 직업 — 자동완성
+        diag.append(self._ws_set_select_any(CONDITION["drivType_label"], "운전형태"))
+        diag.append(self._ws_set_select_any(CONDITION["uwType_label"], "심사고지유형"))
+        diag.append(self._ws_set_select_any(CONDITION["waiver_label"], "납입면제"))
+        diag.append(self._ws_set_radio("rdo_0001963", CONDITION["payYears_label"], "납기"))
+        diag.append(self._ws_set_radio("rdo_0001966", CONDITION["maturity_label"], "만기"))
+        diag.append(self._ws_set_radio("", CONDITION["plan_label"], "플랜"))
         diag.append(self._fill_occupation(CONDITION["occupation_query"]))
 
         (self.debug_dir / "conditions_diag.json").write_text(
@@ -258,90 +256,66 @@ class KBInsuranceScraper(BaseScraper):
                                           else f"found={r.get('found')} {r.get('setErr','')}")
         return r
 
-    def _ws_set_by_label(self, suffix: str, label: str, field: str) -> dict:
-        """select1/radio 컴포넌트를 suffix 로 찾아, 옵션 중 라벨 부분일치 값을 set."""
-        r = self._ws("""(a) => {
-            var c = wsComp(a.s), r = {field: a.f, suffix: a.s, found: !!c};
-            if (!c) { r.elExists = !!wsEl(a.s); return r; }
-            r.methods = wsMethods(c).slice(0, 30);
-            var opts = readOptions(c);
-            r.options = opts.slice(0, 40);
-            var hit = pickByLabel(opts, a.label);
-            if (hit) { try { c.setValue(hit.v); r.picked = hit; } catch (e) { r.setErr = '' + e; } }
-            else r.picked = 'NO-MATCH';
-            try { r.after = c.getValue(); } catch (e) {}
-            return r;
+    def _ws_set_select_any(self, label: str, field: str) -> dict:
+        """모든 select1(콤보)을 훑어, 옵션목록(_itemTable)에 라벨을 가진 것을 선택.
 
-            function readOptions(c) {
-                var o = [];
-                try {
-                    if (typeof c.getOptionCount === 'function') {
-                        for (var i = 0; i < c.getOptionCount(); i++)
-                            o.push({l: '' + c.getOptionLabel(i), v: '' + c.getOptionValue(i)});
+        콤보의 논리 id 를 몰라도 동작한다. 옵션 요소를 JS click 으로 선택하므로
+        드롭다운이 닫혀 있어도 클릭 핸들러가 발동. 실패 시 본 옵션을 진단에 남김.
+        """
+        r = self._ws("""(a) => {
+            var boxes = document.querySelectorAll('[role=combobox]'), seen = [];
+            for (var b = 0; b < boxes.length; b++) {
+                var id = boxes[b].id;
+                if (!id) continue;
+                var it = document.getElementById(id + '_itemTable');
+                if (!it) continue;
+                var opts = it.querySelectorAll('td, li, a');
+                for (var i = 0; i < opts.length; i++) {
+                    var t = (opts[i].innerText || opts[i].textContent || '').trim();
+                    if (!t) continue;
+                    seen.push(t);
+                    if (t.indexOf(a.label) >= 0) {
+                        opts[i].click();
+                        return {field: a.f, ok: true, picked: t, box: id.slice(-44)};
                     }
-                } catch (e) {}
-                if (!o.length) {  // DOM fallback: option/li 요소
-                    try {
-                        var el = wsEl(a.s), root = el;
-                        for (var k = 0; k < 6 && root && root.parentElement; k++) root = root.parentElement;
-                        (root || document).querySelectorAll(
-                            '[id*="' + a.s.slice(1) + '"] option, [id*="' + a.s.slice(1) + '"] li'
-                        ).forEach(function (n) {
-                            o.push({l: (n.innerText || n.textContent || '').trim(),
-                                    v: n.value || n.getAttribute('value') || ''});
-                        });
-                    } catch (e) {}
                 }
-                return o;
             }
-            function pickByLabel(opts, label) {
-                for (var i = 0; i < opts.length; i++)
-                    if (opts[i].l && opts[i].l.indexOf(label) >= 0) return opts[i];
-                return null;
-            }
-        }""", {"s": suffix, "label": label, "f": field}) or {}
-        r["ok"] = isinstance(r.get("picked"), dict)
-        r["detail"] = (r.get("setErr") or (f"picked={r.get('picked')}" if r["ok"]
-                       else f"found={r.get('found')} options={len(r.get('options', []))} "
-                            f"picked={r.get('picked')}"))
+            return {field: a.f, ok: false, seenOptions: seen.slice(0, 50)};
+        }""", {"label": label, "f": field}) or {}
+        r["ok"] = bool(r.get("ok"))
+        r["detail"] = (f"선택 {r.get('picked')}" if r["ok"]
+                       else f"라벨 '{label}' 가진 콤보 없음 (옵션표본 {r.get('seenOptions')})")
         return r
 
-    def _ws_set_label_anycombo(self, label: str, field: str) -> dict:
-        """논리 id 미상인 select1 — 모든 콤보를 훑어 라벨을 옵션에 가진 것을 set."""
-        return self._ws_set_label_any(label, field, "combobox")
+    def _ws_set_radio(self, name_frag: str, label: str, field: str) -> dict:
+        """라디오그룹 — name 에 name_frag 가 든 radio 중 라벨 일치 항목을 click.
 
-    def _ws_set_label_anyradio(self, label: str, field: str) -> dict:
-        return self._ws_set_label_any(label, field, "radio")
-
-    def _ws_set_label_any(self, label: str, field: str, kind: str) -> dict:
+        WebSquare 라디오그룹은 <input type=radio><label>텍스트</label> 구조라
+        라벨 텍스트로 고른다. name_frag 가 '' 이면 화면 전체 라디오가 대상
+        (플랜처럼 그룹 id 미상일 때).
+        """
         r = self._ws("""(a) => {
-            var r = {field: a.f, label: a.label, kind: a.kind};
-            var sel = a.kind === 'radio'
-                ? 'input[type=radio]' : '[role=combobox]';
-            var nodes = document.querySelectorAll(sel), tried = 0;
-            for (var i = 0; i < nodes.length; i++) {
-                var id = nodes[i].id;
-                if (!id) continue;
-                var c;
-                try { c = WebSquare.util.getComponentById(id); } catch (e) { continue; }
-                if (!c || typeof c.getOptionCount !== 'function') continue;
-                tried++;
-                try {
-                    for (var k = 0; k < c.getOptionCount(); k++) {
-                        if (('' + c.getOptionLabel(k)).indexOf(a.label) >= 0) {
-                            c.setValue(c.getOptionValue(k));
-                            r.matchedId = id; r.value = c.getOptionValue(k);
-                            return r;
-                        }
-                    }
-                } catch (e) {}
+            var sel = 'input[type=radio]' + (a.frag ? '[name*="' + a.frag + '"]' : '');
+            var rs = document.querySelectorAll(sel), labels = [];
+            for (var i = 0; i < rs.length; i++) {
+                var lbl = rs[i].nextElementSibling;
+                var t = lbl ? (lbl.innerText || lbl.textContent || '').trim() : '';
+                if (!t) {
+                    var l2 = document.querySelector('label[for="' + rs[i].id + '"]');
+                    t = l2 ? (l2.innerText || '').trim() : '';
+                }
+                labels.push(t);
+                if (t && t.indexOf(a.label) >= 0) {
+                    rs[i].click();
+                    return {field: a.f, ok: true, picked: t, count: rs.length};
+                }
             }
-            r.tried = tried; r.matchedId = null;
-            return r;
-        }""", {"label": label, "f": field, "kind": kind}) or {}
-        r["ok"] = bool(r.get("matchedId"))
-        r["detail"] = (f"matched {r.get('matchedId')}={r.get('value')}" if r["ok"]
-                       else f"라벨 '{label}' 매칭 실패 (검사 {r.get('tried')}개)")
+            return {field: a.f, ok: false, count: rs.length, labels: labels.slice(0, 40)};
+        }""", {"frag": name_frag, "label": label, "f": field}) or {}
+        r["ok"] = bool(r.get("ok"))
+        r["detail"] = (f"선택 {r.get('picked')}" if r["ok"]
+                       else f"라벨 '{label}' 라디오 없음 (라디오 {r.get('count')}개, "
+                            f"라벨 {r.get('labels')})")
         return r
 
     def _fill_occupation(self, query: str) -> dict:
