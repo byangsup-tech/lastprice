@@ -26,7 +26,21 @@ def launch_browser(
     네트워크·DOM·이벤트를 오프라인 재생할 수 있다.
     """
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=cfg.headless, slow_mo=cfg.slow_mo_ms)
+        # 브라우저: 시스템에 설치된 Chrome/Edge 를 우선 사용한다.
+        # Playwright 번들 Chromium 다운로드(cdn.playwright.dev)가 사내망에서
+        # 막히는 경우가 많아, 이미 깔린 브라우저를 쓰면 별도 다운로드가 불필요.
+        browser = None
+        for channel in ("chrome", "msedge"):
+            try:
+                browser = p.chromium.launch(
+                    channel=channel, headless=cfg.headless, slow_mo=cfg.slow_mo_ms)
+                print(f"  · 브라우저: 시스템 {channel}")
+                break
+            except Exception:
+                continue
+        if browser is None:
+            browser = p.chromium.launch(headless=cfg.headless, slow_mo=cfg.slow_mo_ms)
+            print("  · 브라우저: Playwright 번들 Chromium")
         ctx_kwargs = dict(
             user_agent=cfg.user_agent,
             viewport={"width": cfg.viewport_width, "height": cfg.viewport_height},
