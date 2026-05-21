@@ -15,7 +15,7 @@ for _pkg in ("playwright",):
     hiddenimports += _h
 
 hiddenimports += [
-    "flask", "openpyxl", "config",
+    "flask", "openpyxl", "config", "tkinter", "tkinter.filedialog",
     "src.webapp", "src.runner", "src.excel_writer", "src.browser",
     "src.models", "src.scrapers.base", "src.scrapers.kb_insurance",
 ]

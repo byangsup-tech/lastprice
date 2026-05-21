@@ -49,11 +49,12 @@ class _LogStream:
             pass
 
 
-def _worker(product_code: str, profiles: list[dict]) -> None:
+def _worker(product_code: str, profiles: list[dict], output_dir: str) -> None:
     stream = _LogStream()
     try:
         with redirect_stdout(stream):
-            result = run_collection(product_code, profiles, headless=False)
+            result = run_collection(product_code, profiles, headless=False,
+                                    output_dir=output_dir)
     except Exception as e:  # noqa: BLE001
         result = {"ok": False, "error": f"{type(e).__name__}: {e}",
                   "output_path": None}
@@ -68,6 +69,11 @@ def index():
     return PAGE
 
 
+@app.route("/defaults")
+def defaults():
+    return jsonify({"output_dir": str(OUTPUT_DIR)})
+
+
 @app.route("/run", methods=["POST"])
 def run():
     with _LOCK:
@@ -75,12 +81,13 @@ def run():
             return jsonify({"error": "이미 수집이 진행 중입니다."}), 409
     data = request.get_json(force=True, silent=True) or {}
     product_code = str(data.get("product_code", "")).strip()
+    output_dir = str(data.get("output_dir", "")).strip()
     profiles = data.get("profiles") or []
     if not profiles:
         return jsonify({"error": "조건을 1개 이상 추가하세요."}), 400
     with _LOCK:
         _STATE.update(running=True, finished=False, result=None, log=[])
-    threading.Thread(target=_worker, args=(product_code, profiles),
+    threading.Thread(target=_worker, args=(product_code, profiles, output_dir),
                      daemon=True).start()
     return jsonify({"started": True})
 
@@ -96,16 +103,52 @@ def status():
         })
 
 
+@app.route("/pick-folder", methods=["POST"])
+def pick_folder():
+    """OS 폴더 선택창을 띄워 경로를 돌려준다 (로컬 실행이므로 가능).
+
+    tkinter 루트는 생성·사용·파기를 한 스레드 안에서 끝내야 안전하므로
+    매 호출마다 전용 스레드를 만들어 거기서 다이얼로그를 돌린다.
+    """
+    box: dict = {}
+
+    def _dialog() -> None:
+        try:
+            import tkinter
+            from tkinter import filedialog
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            box["path"] = filedialog.askdirectory(title="엑셀 저장 폴더 선택") or ""
+            root.destroy()
+        except Exception as e:  # noqa: BLE001
+            box["error"] = str(e)
+
+    t = threading.Thread(target=_dialog, daemon=True)
+    t.start()
+    t.join(timeout=180)
+    if t.is_alive():
+        return jsonify({"ok": False, "error": "폴더 선택창 응답 시간 초과"}), 504
+    if "error" in box:
+        return jsonify({"ok": False, "error": box["error"]}), 500
+    return jsonify({"ok": True, "path": box.get("path", "")})
+
+
 @app.route("/open", methods=["POST"])
 def open_folder():
     try:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        target = OUTPUT_DIR
+        result = _STATE.get("result") or {}
+        path = result.get("output_path")
+        if path and os.path.exists(path):
+            target = os.path.dirname(path)
         if sys.platform.startswith("win"):
-            os.startfile(OUTPUT_DIR)  # type: ignore[attr-defined]
+            os.startfile(target)  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(OUTPUT_DIR)])
+            subprocess.Popen(["open", str(target)])
         else:
-            subprocess.Popen(["xdg-open", str(OUTPUT_DIR)])
+            subprocess.Popen(["xdg-open", str(target)])
         return jsonify({"ok": True})
     except Exception as e:  # noqa: BLE001
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -118,6 +161,16 @@ def download():
     if not path or not os.path.exists(path):
         return "결과 파일이 아직 없습니다.", 404
     return send_file(path, as_attachment=True)
+
+
+@app.route("/quit", methods=["POST"])
+def quit_app():
+    """프로그램(로컬 서버) 종료. 응답 전송 여유를 주고 프로세스를 끝낸다."""
+    def _kill() -> None:
+        time.sleep(0.4)
+        os._exit(0)
+    threading.Thread(target=_kill, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 PAGE = """<!DOCTYPE html>
@@ -178,6 +231,7 @@ PAGE = """<!DOCTYPE html>
     padding: 22px 26px 18px; border-bottom: 1px solid var(--border); gap: 16px;
   }
   .head-l { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .head-r { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .logo {
     width: 36px; height: 36px; border-radius: 8px;
     background: linear-gradient(180deg, #284b78 0%, #1a3252 100%);
@@ -207,6 +261,17 @@ PAGE = """<!DOCTYPE html>
   @keyframes blink {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: .35; transform: scale(.85); }
+  }
+
+  .quit-btn {
+    height: 26px; padding: 0 12px; border: 1px solid var(--border-strong);
+    background: #fff; border-radius: 999px; color: var(--text-3);
+    font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    transition: all .15s; flex-shrink: 0;
+  }
+  .quit-btn:hover {
+    color: var(--error); border-color: var(--error-border);
+    background: var(--error-bg);
   }
 
   .body { padding: 22px 26px 24px; }
@@ -243,6 +308,20 @@ PAGE = """<!DOCTYPE html>
   .product-code {
     width: 220px; font-variant-numeric: tabular-nums; letter-spacing: .04em;
   }
+
+  .dir-row { display: flex; gap: 8px; }
+  .dir-input { flex: 1; min-width: 0; }
+  .dir-btn {
+    height: 36px; padding: 0 16px; border: 1px solid var(--border-strong);
+    background: #fff; border-radius: var(--radius-sm); color: var(--text-2);
+    font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: all .15s; flex-shrink: 0;
+  }
+  .dir-btn:hover {
+    border-color: var(--primary); color: var(--primary);
+    background: var(--primary-soft);
+  }
+  .dir-btn:disabled { opacity: .5; cursor: not-allowed; }
 
   .cases {
     border: 1px solid var(--border); border-radius: var(--radius);
@@ -460,7 +539,10 @@ PAGE = """<!DOCTYPE html>
           <div class="subtitle">상품코드와 조건을 정하면 특약별 월보험료를 엑셀로 저장합니다.</div>
         </div>
       </div>
-      <span class="status-pill pill-idle" id="statusPill"><span class="dot"></span>대기</span>
+      <div class="head-r">
+        <span class="status-pill pill-idle" id="statusPill"><span class="dot"></span>대기</span>
+        <button class="quit-btn" type="button" id="quitBtn" title="프로그램 종료">종료</button>
+      </div>
     </header>
 
     <div class="body">
@@ -488,6 +570,17 @@ PAGE = """<!DOCTYPE html>
         </div>
         <div class="add-row">
           <button class="add-btn" type="button" id="addBtn"><span class="plus">+</span>조건 추가</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="field-row">
+          <label class="field-label" for="outputDir">저장 위치</label>
+          <span class="field-hint">엑셀이 저장될 폴더</span>
+        </div>
+        <div class="dir-row">
+          <input type="text" id="outputDir" class="dir-input" placeholder="비워두면 프로그램 폴더의 output 에 저장됩니다" />
+          <button class="dir-btn" type="button" id="browseBtn">찾아보기</button>
         </div>
       </div>
 
@@ -611,6 +704,8 @@ function setRun(st) {
 }
 function setFormDisabled(dis) {
   document.getElementById('productCode').disabled = dis;
+  document.getElementById('outputDir').disabled = dis;
+  document.getElementById('browseBtn').disabled = dis;
   document.getElementById('addBtn').disabled = dis;
   document.querySelectorAll('#cases select, #cases input, #cases .del-btn')
     .forEach(function(el){ el.disabled = dis; });
@@ -708,6 +803,7 @@ function start() {
   renderProgress('run', '');
   fetch('/run', { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ product_code: document.getElementById('productCode').value,
+                           output_dir: document.getElementById('outputDir').value,
                            profiles: profiles }) })
   .then(function(r){ return r.json().then(function(j){ return {s:r.status,j:j}; }); })
   .then(function(x){
@@ -751,13 +847,50 @@ function openFolder() {
   .then(function(j){ if (!j.ok) alert('폴더 열기 실패: ' + (j.error||'')); });
 }
 
+function browseFolder() {
+  if (running) return;
+  var btn = document.getElementById('browseBtn');
+  btn.disabled = true;
+  fetch('/pick-folder', { method:'POST' })
+  .then(function(r){ return r.json(); })
+  .then(function(j){
+    if (j.ok) { if (j.path) document.getElementById('outputDir').value = j.path; }
+    else { alert('폴더 선택 창을 열 수 없습니다. 경로를 직접 입력하세요.\\n' + (j.error||'')); }
+  })
+  .catch(function(){ alert('폴더 선택에 실패했습니다. 경로를 직접 입력하세요.'); })
+  .finally(function(){ if (!running) btn.disabled = false; });
+}
+
+function quitApp() {
+  var msg = running ? '수집이 진행 중입니다. 그래도 프로그램을 종료하시겠습니까?'
+                    : '프로그램을 종료하시겠습니까?';
+  if (!confirm(msg)) return;
+  fetch('/quit', { method:'POST' }).catch(function(){}).then(function(){
+    document.body.style.cssText =
+      'margin:0;display:flex;align-items:center;justify-content:center;' +
+      'height:100vh;background:#e6e9ee;' +
+      'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Malgun Gothic,sans-serif;';
+    document.body.innerHTML =
+      '<div style="text-align:center;color:#475569;">' +
+      '<div style="font-size:16px;font-weight:700;color:#0f172a;">프로그램이 종료되었습니다</div>' +
+      '<div style="font-size:13px;margin-top:6px;">이 브라우저 창은 닫으셔도 됩니다.</div>' +
+      '</div>';
+  });
+}
+
 addRow('남', 40, '100세', '20년');
 addRow('여', 50, '100세', '20년');
 document.getElementById('addBtn').onclick = function(){ if (!running) addRow(); };
 document.getElementById('runBtn').onclick = start;
+document.getElementById('browseBtn').onclick = browseFolder;
+document.getElementById('quitBtn').onclick = quitApp;
 document.addEventListener('keydown', function(e){
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') start();
 });
+fetch('/defaults').then(function(r){ return r.json(); }).then(function(j){
+  var f = document.getElementById('outputDir');
+  if (j.output_dir && !f.value) f.value = j.output_dir;
+}).catch(function(){});
 poll();
 </script>
 </body>

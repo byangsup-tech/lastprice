@@ -29,17 +29,25 @@ DEBUG_DIR = app_base_dir() / "debug"
 
 
 def run_collection(product_code: str, profiles: list[dict], *,
-                   headless: bool = False, limit: int = 0) -> dict:
+                   headless: bool = False, limit: int = 0,
+                   output_dir: str = "") -> dict:
     """계산기를 돌려 long-format 엑셀을 만든다.
 
     product_code 가 비면 건강보험 후보 전체, 있으면 그 코드 1건. profiles 는
     조건 프로파일 리스트(각 dict: sex_label·age·maturity_label·payYears_label).
+    output_dir 이 주어지면 그 폴더에 저장(없으면 기본 output/).
     반환: {ok, output_path, error, products, rows}.
     """
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     if not profiles:
         return {"ok": False, "error": "조건이 하나도 없습니다.", "output_path": None}
+
+    out_dir = Path(output_dir).expanduser() if output_dir.strip() else OUTPUT_DIR
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "output_path": None,
+                "error": f"저장 폴더를 만들 수 없습니다 — {out_dir} ({e})"}
 
     cfg = BrowserConfig(headless=headless)
     results = []
@@ -63,7 +71,7 @@ def run_collection(product_code: str, profiles: list[dict], *,
         return {"ok": False, "output_path": None,
                 "error": f"{type(e).__name__}: {e}"}
 
-    out = write_long_workbook(KBInsuranceScraper.company, results, OUTPUT_DIR)
+    out = write_long_workbook(KBInsuranceScraper.company, results, out_dir)
     rows = sum(len(p.riders) for p in results)
     print(f"[완료] {out}")
     return {"ok": True, "output_path": str(out), "error": "",
