@@ -5,7 +5,6 @@ from pathlib import Path
 
 from playwright.sync_api import Page
 
-from config import QuoteCondition
 from src.models import Product
 
 
@@ -23,8 +22,8 @@ class BaseScraper(ABC):
         """건강보험(암/CI/뇌·심) 상품 목록 — [{'name': str, 'code': str, 'url': str}, ...]"""
 
     @abstractmethod
-    def quote_product(self, product_meta: dict, condition: QuoteCondition) -> Product:
-        """단일 상품에 대해 조건 입력 → 모든 특약을 최저가입금액으로 설계 → 보험료 계산 → 결과 반환."""
+    def quote_product_profiles(self, product_meta: dict) -> list[Product]:
+        """여러 조건(CONDITION_PROFILES)으로 단일 상품을 산출 → 조건별 Product 리스트."""
 
     def snap(self, label: str) -> None:
         """디버그용 스크린샷 + HTML 덤프."""

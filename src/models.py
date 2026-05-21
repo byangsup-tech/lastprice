@@ -31,3 +31,8 @@ class Product:
     captured_at: datetime = field(default_factory=datetime.now)
     source_url: str = ""
     error: str = ""
+    # 산출 조건 (long-format 엑셀 컬럼)
+    cond_sex: str = ""               # 성별 "남"/"여"
+    cond_age: str = ""               # 연령 "40"
+    cond_insurance_period: str = ""  # 보험기간(만기) "100세"
+    cond_payment_period: str = ""    # 납입기간(납기) "20년"

@@ -25,7 +25,6 @@ from typing import Optional
 
 from playwright.sync_api import TimeoutError as PWTimeout
 
-from config import QuoteCondition
 from src.models import Product, Rider
 from src.scrapers.base import BaseScraper
 
@@ -51,6 +50,18 @@ CONDITION = {
     "payYears_label": "20년",          # 납기(라디오)
     "maturity_label": "100세",         # 만기(라디오)
 }
+
+# 멀티 조건 — 상품마다 아래 프로파일을 한 번씩 산출한다. 각 항목이 CONDITION 의
+# 성별·연령·보험기간(만기)·납입기간(납기)을 덮어쓴다(직업·운전형태·심사고지·
+# 납입면제·플랜은 CONDITION 고정값 유지). 행을 추가·삭제해 조정한다.
+CONDITION_PROFILES = [
+    {"sex_label": "남", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "남", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "남", "age": "60", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "여", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "여", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "여", "age": "70", "maturity_label": "100세", "payYears_label": "20년"},
+]
 
 # 모든 evaluate 앞에 붙는 WebSquare 헬퍼.
 #   wsEl(sfx)   : id 가 sfx 로 끝나는 DOM 요소
@@ -91,6 +102,7 @@ class KBInsuranceScraper(BaseScraper):
 
     _main_page = None   # 목록 페이지
     _ws_frame = None    # WebSquare 엔진이 사는 frame (WS_MAIN)
+    _cond = CONDITION   # 현재 산출 조건 (quote_product_profiles 가 프로파일별로 교체)
     # 담보 개별산출 상한 (0=전체). 상품 24950 으로 12건 검증 완료 → 전체로 확장.
     CVR_VERIFY_LIMIT = 0
 
@@ -131,9 +143,26 @@ class KBInsuranceScraper(BaseScraper):
         return products
 
     # ------------------------------------------------------------------ #
-    # 단일 상품
+    # 단일 상품 — 멀티 조건
     # ------------------------------------------------------------------ #
-    def quote_product(self, product_meta: dict, condition: QuoteCondition) -> Product:
+    def quote_product_profiles(self, product_meta: dict) -> list[Product]:
+        """CONDITION_PROFILES 의 조건마다 계산기를 새로 열어 1회씩 산출.
+
+        조건(성별·나이·보험기간·납입기간)은 계산기 진입 첫 화면에서 넣는 값이라,
+        프로파일마다 팝업을 새로 띄워 깨끗한 상태에서 입력한다. 한 상품이 조건 수
+        만큼의 Product(각각 그 조건의 산출결과)로 반환된다.
+        """
+        results: list[Product] = []
+        n = len(CONDITION_PROFILES)
+        for k, profile in enumerate(CONDITION_PROFILES, start=1):
+            self._cond = {**CONDITION, **profile}
+            print(f"    [조건 {k}/{n}] {self._cond['sex_label']} {self._cond['age']}세 "
+                  f"/ {self._cond['maturity_label']}만기 / {self._cond['payYears_label']}납")
+            results.append(self._quote_once(product_meta))
+        return results
+
+    def _quote_once(self, product_meta: dict) -> Product:
+        """현재 self._cond 조건으로 계산기 1회 — 진입→조건입력→담보→산출→결과수집."""
         product = Product(
             company=self.company,
             name=product_meta["name"],
@@ -157,6 +186,10 @@ class KBInsuranceScraper(BaseScraper):
             self.snap(f"ERR_{product.name[:20]}")
         finally:
             self._close_calculator_if_popup()
+        product.cond_sex = self._cond["sex_label"]
+        product.cond_age = self._cond["age"]
+        product.cond_insurance_period = self._cond["maturity_label"]
+        product.cond_payment_period = self._cond["payYears_label"]
         if product.error:
             print(f"    ✗ 오류: {product.error}")
         return product
@@ -233,18 +266,18 @@ class KBInsuranceScraper(BaseScraper):
         # select/radio 옵션이 비동기로 채워질 시간을 준다
         self.page.wait_for_timeout(3000)
         diag = []
-        diag.append(self._fill_combo("성별", CONDITION["sex_label"], suffix="_cmb_sexCd"))
-        diag.append(self._fill_age(CONDITION["age"]))
-        diag.append(self._fill_combo("운전형태", CONDITION["drivType_label"],
+        diag.append(self._fill_combo("성별", self._cond["sex_label"], suffix="_cmb_sexCd"))
+        diag.append(self._fill_age(self._cond["age"]))
+        diag.append(self._fill_combo("운전형태", self._cond["drivType_label"],
                                      suffix="_cmb_drivTdcd"))
-        diag.append(self._fill_combo("심사고지유형", CONDITION["uwType_label"],
+        diag.append(self._fill_combo("심사고지유형", self._cond["uwType_label"],
                                      row_label="심사고지유형"))
-        diag.append(self._fill_combo("납입면제", CONDITION["waiver_label"],
+        diag.append(self._fill_combo("납입면제", self._cond["waiver_label"],
                                      row_label="납입면제"))
-        diag.append(self._ws_set_radio("rdo_0001963", CONDITION["payYears_label"], "납기"))
-        diag.append(self._ws_set_radio("rdo_0001966", CONDITION["maturity_label"], "만기"))
-        diag.append(self._ws_set_radio("", CONDITION["plan_label"], "플랜"))
-        diag.append(self._fill_occupation(CONDITION["occupation_query"]))
+        diag.append(self._ws_set_radio("rdo_0001963", self._cond["payYears_label"], "납기"))
+        diag.append(self._ws_set_radio("rdo_0001966", self._cond["maturity_label"], "만기"))
+        diag.append(self._ws_set_radio("", self._cond["plan_label"], "플랜"))
+        diag.append(self._fill_occupation(self._cond["occupation_query"]))
 
         (self.debug_dir / "conditions_diag.json").write_text(
             json.dumps(diag, ensure_ascii=False, indent=2), encoding="utf-8")

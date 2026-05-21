@@ -1,24 +1,7 @@
-"""고정 조건값. 추후 다양화가 필요하면 yaml/CLI 인자로 확장."""
+"""브라우저 설정. 산출 조건은 src/scrapers/kb_insurance.py 의
+CONDITION / CONDITION_PROFILES 를 편집한다."""
 
 from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class QuoteCondition:
-    gender: str               # "M" / "F"
-    age: int                  # 보험나이
-    premium_waiver: bool      # 납입면제특약 여부
-    insurance_period: str     # 예: "100세만기"
-    payment_period: str       # 예: "20년납"
-
-
-DEFAULT_CONDITION = QuoteCondition(
-    gender="M",
-    age=40,
-    premium_waiver=True,
-    insurance_period="100세만기",
-    payment_period="20년납",
-)
 
 
 @dataclass(frozen=True)

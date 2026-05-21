@@ -6,100 +6,79 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from config import QuoteCondition
 from src.models import Product
 
 HEADER_FILL = PatternFill("solid", fgColor="305496")
 HEADER_FONT = Font(bold=True, color="FFFFFF")
-SUB_FILL = PatternFill("solid", fgColor="D9E1F2")
 CENTER = Alignment(horizontal="center", vertical="center")
 
+HEADERS = ["회사", "상품코드", "상품명", "성별", "연령", "보험기간", "납입기간",
+           "특약명", "비고", "최저가입금액", "최고가입금액", "설계금액",
+           "납기", "만기", "월보험료(원)", "수집일시"]
+AMOUNT_COLS = (10, 11, 12, 15)   # 최저·최고·설계금액·월보험료 — 천단위 구분
+COL_WIDTHS = [12, 10, 40, 6, 6, 10, 10, 44, 10, 13, 13, 13, 10, 10, 13, 20]
 
-def write_company_workbook(
-    company: str,
-    products: list[Product],
-    condition: QuoteCondition,
-    output_dir: Path,
-) -> Path:
-    """회사당 하나의 xlsx — 상품별 시트."""
+
+def write_long_workbook(company: str, products: list[Product], output_dir: Path) -> Path:
+    """조건×특약 long-format 워크북 — 1행=1관측(피벗용 평면표).
+
+    products 는 (상품 × 조건프로파일) 단위 Product 리스트. Product 하나가
+    한 조건에서의 한 상품 산출결과이고, 그 안의 특약마다 1행을 쓴다. 동일 특약을
+    성별·연령별로 비교하려면 이 시트를 피벗 테이블 소스로 쓰면 된다.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
-    wb.remove(wb.active)
+    ws = wb.active
+    ws.title = "보험료"
 
-    if not products:
-        ws = wb.create_sheet("EMPTY")
-        ws["A1"] = f"{company}: no products captured"
-    else:
-        for product in products:
-            sheet_name = _safe_sheet_name(product.name)
-            ws = wb.create_sheet(sheet_name)
-            _write_meta(ws, company, product, condition)
-            _write_riders(ws, product)
+    for c, h in enumerate(HEADERS, start=1):
+        cell = ws.cell(row=1, column=c, value=h)
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.alignment = CENTER
+
+    r = 1
+    for product in products:
+        captured = product.captured_at.strftime("%Y-%m-%d %H:%M:%S")
+        base = [company, product.code or "", product.name, product.cond_sex,
+                _as_int(product.cond_age), product.cond_insurance_period,
+                product.cond_payment_period]
+        # 특약 0건(수집 실패)이면 조건 식별용 1행이라도 남긴다
+        for rider in (product.riders or [None]):
+            r += 1
+            if rider is None:
+                tail = ["(수집 실패)", product.error or "",
+                        None, None, None, "", "", None, captured]
+            else:
+                tail = [rider.name, rider.note, rider.min_amount, rider.max_amount,
+                        rider.selected_amount, rider.pay_period, rider.maturity,
+                        rider.premium, captured]
+            for c, v in enumerate(base + tail, start=1):
+                cell = ws.cell(row=r, column=c, value=v)
+                if c in AMOUNT_COLS and isinstance(v, int):
+                    cell.number_format = "#,##0"
+
+    if r == 1:
+        ws.cell(row=2, column=1, value=f"{company}: 수집 결과 없음")
+
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{max(r, 2)}"
+    for i, w in enumerate(COL_WIDTHS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
 
     out_path = output_dir / f"{_safe_filename(company)}.xlsx"
     wb.save(out_path)
     return out_path
 
 
-def _safe_sheet_name(name: str) -> str:
-    bad = '[]:*?/\\'
-    s = "".join("_" if c in bad else c for c in name)[:31]
-    return s or "Sheet"
+def _as_int(val):
+    """'40' → 40. 변환 불가하면 원본(빈 문자열 포함) 그대로."""
+    try:
+        return int(str(val).strip())
+    except (ValueError, TypeError):
+        return val or ""
 
 
 def _safe_filename(name: str) -> str:
     bad = '<>:"/\\|?*'
     return "".join("_" if c in bad else c for c in name).strip() or "company"
-
-
-def _write_meta(ws, company: str, product: Product, cond: QuoteCondition) -> None:
-    meta = [
-        ("회사", company),
-        ("상품명", product.name),
-        ("상품코드", product.code or ""),
-        ("성별", cond.gender),
-        ("연령", cond.age),
-        ("납입면제", "Y" if cond.premium_waiver else "N"),
-        ("보험기간", cond.insurance_period),
-        ("납입기간", cond.payment_period),
-        ("주계약 가입금액", product.main_coverage_amount or ""),
-        ("주계약 보험료", product.main_premium or ""),
-        ("합계 보험료", product.total_premium or ""),
-        ("수집일시", product.captured_at.strftime("%Y-%m-%d %H:%M:%S")),
-        ("출처 URL", product.source_url),
-    ]
-    for row_idx, (k, v) in enumerate(meta, start=1):
-        ws.cell(row=row_idx, column=1, value=k).font = Font(bold=True)
-        ws.cell(row=row_idx, column=1).fill = SUB_FILL
-        ws.cell(row=row_idx, column=2, value=v)
-    if product.error:
-        err_row = len(meta) + 1
-        ws.cell(row=err_row, column=1, value="에러").font = Font(bold=True, color="C00000")
-        ws.cell(row=err_row, column=2, value=product.error)
-
-
-def _write_riders(ws, product: Product) -> None:
-    start_row = 16
-    headers = ["No", "특약명", "최저가입금액", "최고가입금액", "설계금액",
-               "납기", "만기", "월보험료(원)", "비고"]
-    for c, h in enumerate(headers, start=1):
-        cell = ws.cell(row=start_row, column=c, value=h)
-        cell.fill = HEADER_FILL
-        cell.font = HEADER_FONT
-        cell.alignment = CENTER
-
-    for i, rider in enumerate(product.riders, start=1):
-        r = start_row + i
-        ws.cell(row=r, column=1, value=i).alignment = CENTER
-        ws.cell(row=r, column=2, value=rider.name)
-        ws.cell(row=r, column=3, value=rider.min_amount)
-        ws.cell(row=r, column=4, value=rider.max_amount)
-        ws.cell(row=r, column=5, value=rider.selected_amount)
-        ws.cell(row=r, column=6, value=rider.pay_period)
-        ws.cell(row=r, column=7, value=rider.maturity)
-        ws.cell(row=r, column=8, value=rider.premium)
-        ws.cell(row=r, column=9, value=rider.note)
-
-    widths = [5, 48, 14, 14, 14, 10, 10, 14, 22]
-    for i, w in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(i)].width = w

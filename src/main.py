@@ -27,9 +27,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import DEFAULT_BROWSER, DEFAULT_CONDITION, BrowserConfig
+from config import DEFAULT_BROWSER, BrowserConfig
 from src.browser import launch_browser, polite_sleep
-from src.excel_writer import write_company_workbook
+from src.excel_writer import write_long_workbook
 from src.scrapers.base import BaseScraper
 from src.scrapers.kb_insurance import KBInsuranceScraper
 
@@ -99,11 +99,10 @@ def main() -> int:
         results = []
         for i, meta in enumerate(products_meta, 1):
             print(f"  [{i}/{len(products_meta)}] {meta['name']}")
-            product = scraper.quote_product(meta, DEFAULT_CONDITION)
-            results.append(product)
+            results.extend(scraper.quote_product_profiles(meta))
             polite_sleep(cfg)
 
-    out = write_company_workbook(scraper.company, results, DEFAULT_CONDITION, OUTPUT_DIR)
+    out = write_long_workbook(scraper.company, results, OUTPUT_DIR)
     print(f"[OK] {out}")
     return 0
 
