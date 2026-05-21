@@ -91,6 +91,8 @@ class KBInsuranceScraper(BaseScraper):
 
     _main_page = None   # 목록 페이지
     _ws_frame = None    # WebSquare 엔진이 사는 frame (WS_MAIN)
+    # 담보 개별산출 검증 상한 (0=전체). 무검증 v1 — 우선 소수로 메커니즘 확인.
+    CVR_VERIFY_LIMIT = 12
 
     # ------------------------------------------------------------------ #
     # 상품 목록
@@ -145,8 +147,7 @@ class KBInsuranceScraper(BaseScraper):
             self._fill_conditions(product)
             self._click_next()
             self._wait_cvr_grid()
-            self._set_all_riders_to_min()
-            self._calculate()
+            self._quote_riders()
             self._read_results(product)
         except PWTimeout as e:
             product.error = (product.error + " | " if product.error else "") + f"Timeout: {e}"
@@ -457,83 +458,95 @@ class KBInsuranceScraper(BaseScraper):
         print(f"    · 그리드 진단 → grid_diag.json (grd_cvr DOM={diag.get('grdCvrDom')}, "
               f"scope={diag.get('scopeFound')}, cvrViaScope={diag.get('cvrViaScope')})")
 
-    def _set_all_riders_to_min(self) -> None:
-        """전 담보를 가입체크하고 가입금액을 최저가입금액으로 설정.
+    def _quote_riders(self) -> None:
+        """담보별 개별 산출 — 한도 로드 → 각 담보를 최저가입금액으로 → calRtimeCvrPrem.
 
-        먼저 ds_ltApcCvrInfoDTO 표본 + scwin 의 금액/계산 관련 함수명을
-        cvr_sample.json 에 덤프한다 (금액 컬럼·한도서비스 함수 확인용 — 무검증
-        작성분이라 실제 데이터로 금액/보험료 산출 경로를 확정하기 위함).
+        WebSquare 계산기엔 '전 특약 최저 일괄'이 없어, 한도조회로 가입금액을 받은
+        뒤 담보를 하나씩 실시간 산출(LTI0103804)한다. 무검증 v1 이라 우선
+        CVR_VERIFY_LIMIT 개만 처리해 메커니즘을 확인한다. 한도 적재 결과는
+        limits_diag.json 에 남긴다.
         """
-        info = self._ws("""() => {
-            var ds = wsDs('ds_ltApcCvrInfoDTO'), r = {};
+        # 1) 한도 로드 — 남은한도/가입금액 채우는 scwin 함수 호출
+        lim = self._ws("""() => {
             var sc = wsScope() ? wsScope().scwin : null;
-            if (ds) {
-                var all = ds.getAllJSON(), pick = [];
-                for (var i = 0; i < all.length && pick.length < 10; i++)
-                    if (i < 3 || all[i].ntramtInputYn === 'Y') pick.push(all[i]);
-                r.total = all.length;
-                r.columns = Object.keys(all[0] || {});
-                r.sample = pick;
-            }
-            r.scwinFns = [];
-            if (sc) {
-                for (var k in sc) {
-                    try {
-                        if (typeof sc[k] === 'function'
-                            && /Lmt|Namt|Cvr|Prem|Save|calc|ntrPsbl/i.test(k))
-                            r.scwinFns.push(k);
-                    } catch (e) {}
+            if (!sc) return {error: 'no scwin'};
+            var called = [];
+            ['getBcvrNtrLmtAmtList', 'setAllCvrNtrPsblAmt'].forEach(function (fn) {
+                if (typeof sc[fn] === 'function') {
+                    try { sc[fn](); called.push(fn); } catch (e) { called.push(fn + ':ERR'); }
                 }
-            } else { r.scwinFns = 'no-scwin'; }
-            return r;
+            });
+            return {called: called};
         }""") or {}
-        (self.debug_dir / "cvr_sample.json").write_text(
-            json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"    · 담보 표본 → cvr_sample.json (전체 {info.get('total')}행, "
-              f"scwin함수 {len(info.get('scwinFns', []))}개)")
+        self.page.wait_for_timeout(7000)
 
-        result = self._ws("""() => {
+        diag = self._ws("""() => {
             var ds = wsDs('ds_ltApcCvrInfoDTO');
-            if (!ds) return {error: 'ds_ltApcCvrInfoDTO 미발견'};
-            var n = ds.getRowCount(), checked = 0, amounted = 0;
+            if (!ds) return {error: 'no ds'};
+            var n = ds.getRowCount(), wLow = 0, wPsbl = 0, wAmt = 0, sample = [];
             for (var i = 0; i < n; i++) {
-                if (!ds.getCellData(i, 'upCvrCd') && ds.getCellData(i, 'cvrNtrCkYn') !== '1') {
-                    ds.setCellData(i, 'cvrNtrCkYn', '1'); checked++;
-                }
-                var low = ds.getCellData(i, 'lowstNamt');
-                if (ds.getCellData(i, 'ntramtInputYn') === 'Y'
-                        && low != null && low !== '' && Number(low) > 0) {
-                    ds.setCellData(i, 'achngCvrTnthwnUnitNtramt', Math.floor(Number(low) / 10000));
-                    amounted++;
-                }
+                if (ds.getCellData(i, 'lowstNamt')) wLow++;
+                if (ds.getCellData(i, 'ntrPsblAmt')) wPsbl++;
+                if (ds.getCellData(i, 'achngCvrTnthwnUnitNtramt')) wAmt++;
+                if (sample.length < 8 && ds.getCellData(i, 'ntramtInputYn') === 'Y')
+                    sample.push({
+                        cvrNm: ds.getCellData(i, 'cvrNm'),
+                        lowstNamt: ds.getCellData(i, 'lowstNamt'),
+                        bestNamt: ds.getCellData(i, 'bestNamt'),
+                        ntrPsblAmt: ds.getCellData(i, 'ntrPsblAmt'),
+                        achngCvrTnthwnUnitNtramt: ds.getCellData(i, 'achngCvrTnthwnUnitNtramt'),
+                        incrsUnitAmt: ds.getCellData(i, 'incrsUnitAmt')});
             }
-            return {rows: n, checked: checked, amounted: amounted};
+            return {rows: n, withLowstNamt: wLow, withNtrPsblAmt: wPsbl,
+                    withAmount: wAmt, sample: sample};
         }""") or {}
-        if result.get("error"):
-            raise RuntimeError(f"담보 설정 실패: {result['error']}")
-        print(f"    · 담보 {result.get('rows')}행 — 가입 {result.get('checked')} / "
-              f"금액 {result.get('amounted')}")
-        self.snap("07_riders_set")
+        (self.debug_dir / "limits_diag.json").write_text(
+            json.dumps({"limitCalls": lim, "afterLoad": diag}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        print(f"    · 한도로드 {lim.get('called')} — lowstNamt {diag.get('withLowstNamt')}/"
+              f"{diag.get('rows')}, ntrPsblAmt {diag.get('withNtrPsblAmt')}, "
+              f"금액 {diag.get('withAmount')}")
 
-    def _calculate(self) -> None:
-        """보험료 산출 — scwin.btnSaveOnclick 호출 후 합계 산출 대기(best-effort)."""
-        self._ws("""() => {
-            try {
+        # 2) 담보별 개별 산출 (검증: 앞 CVR_VERIFY_LIMIT 개)
+        cap = self.CVR_VERIFY_LIMIT or 99999
+        targets = self._ws("""(a) => {
+            var ds = wsDs('ds_ltApcCvrInfoDTO');
+            if (!ds) return [];
+            var n = ds.getRowCount(), out = [];
+            for (var i = 0; i < n && out.length < a.cap; i++) {
+                if (ds.getCellData(i, 'upCvrCd')) continue;
+                if (ds.getCellData(i, 'ntramtInputYn') !== 'Y') continue;
+                out.push(i);
+            }
+            return out;
+        }""", {"cap": cap}) or []
+        print(f"    · 담보 개별산출 — 대상 {len(targets)}건 "
+              f"(상한 {self.CVR_VERIFY_LIMIT or '전체'})")
+
+        quoted = 0
+        for idx in targets:
+            res = self._ws("""(a) => {
+                var ds = wsDs('ds_ltApcCvrInfoDTO');
                 var sc = wsScope() ? wsScope().scwin : null;
-                if (sc && sc.btnSaveOnclick) { sc.btnSaveOnclick(); return {ok: true}; }
-            } catch (e) {}
-            var el = wsEl('_btn_saveText'); if (el) { el.click(); return {ok: 'dom'}; }
-            return {ok: false};
-        }""")
-        try:
-            self._wait_until(
-                """() => { try { var d = wsDs('ds_ltApcPremDTO');
-                    return !!d && Number(d.getCellData(0, 'sumPrem')) > 0; }
-                    catch (e) { return false; } }""",
-                30_000, "합계보험료 산출")
-        except PWTimeout:
-            print("    · 합계보험료 미산출 — 담보별 보험료 합산으로 대체")
-        self.snap("08_calculated")
+                if (!ds || !sc || typeof sc.calRtimeCvrPrem !== 'function')
+                    return {error: 'no ds/scwin/calRtimeCvrPrem'};
+                var i = a.i;
+                ds.setCellData(i, 'cvrNtrCkYn', '1');
+                var amt = ds.getCellData(i, 'lowstNamt') || ds.getCellData(i, 'ntrPsblAmt')
+                    || ds.getCellData(i, 'bestNamt');
+                if (amt && Number(amt) > 0)
+                    ds.setCellData(i, 'achngCvrTnthwnUnitNtramt',
+                                   Math.floor(Number(amt) / 10000));
+                try { sc.calRtimeCvrPrem(ds, i); } catch (e) { return {error: '' + e}; }
+                return {ok: true};
+            }""", {"i": idx}) or {}
+            if res.get("ok"):
+                quoted += 1
+            self.page.wait_for_timeout(1500)  # 실시간 산출(LTI0103804) 응답 대기
+
+        print(f"    · {quoted}/{len(targets)}건 산출 요청 완료")
+        self.page.wait_for_timeout(4000)
+        self.snap("07_riders_quoted")
 
     def _read_results(self, product: Product) -> None:
         """ds_ltApcCvrInfoDTO / ds_ltApcPremDTO 를 읽어 product 에 채운다."""
