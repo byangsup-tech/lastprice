@@ -458,7 +458,40 @@ class KBInsuranceScraper(BaseScraper):
               f"scope={diag.get('scopeFound')}, cvrViaScope={diag.get('cvrViaScope')})")
 
     def _set_all_riders_to_min(self) -> None:
-        """전 담보를 가입체크하고 가입금액을 최저가입금액(lowstNamt)으로 설정."""
+        """전 담보를 가입체크하고 가입금액을 최저가입금액으로 설정.
+
+        먼저 ds_ltApcCvrInfoDTO 표본 + scwin 의 금액/계산 관련 함수명을
+        cvr_sample.json 에 덤프한다 (금액 컬럼·한도서비스 함수 확인용 — 무검증
+        작성분이라 실제 데이터로 금액/보험료 산출 경로를 확정하기 위함).
+        """
+        info = self._ws("""() => {
+            var ds = wsDs('ds_ltApcCvrInfoDTO'), r = {};
+            var sc = wsScope() ? wsScope().scwin : null;
+            if (ds) {
+                var all = ds.getAllJSON(), pick = [];
+                for (var i = 0; i < all.length && pick.length < 10; i++)
+                    if (i < 3 || all[i].ntramtInputYn === 'Y') pick.push(all[i]);
+                r.total = all.length;
+                r.columns = Object.keys(all[0] || {});
+                r.sample = pick;
+            }
+            r.scwinFns = [];
+            if (sc) {
+                for (var k in sc) {
+                    try {
+                        if (typeof sc[k] === 'function'
+                            && /Lmt|Namt|Cvr|Prem|Save|calc|ntrPsbl/i.test(k))
+                            r.scwinFns.push(k);
+                    } catch (e) {}
+                }
+            } else { r.scwinFns = 'no-scwin'; }
+            return r;
+        }""") or {}
+        (self.debug_dir / "cvr_sample.json").write_text(
+            json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"    · 담보 표본 → cvr_sample.json (전체 {info.get('total')}행, "
+              f"scwin함수 {len(info.get('scwinFns', []))}개)")
+
         result = self._ws("""() => {
             var ds = wsDs('ds_ltApcCvrInfoDTO');
             if (!ds) return {error: 'ds_ltApcCvrInfoDTO 미발견'};
