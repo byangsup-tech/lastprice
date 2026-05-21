@@ -585,25 +585,30 @@ class KBInsuranceScraper(BaseScraper):
             if not d.get("ok"):
                 print(f"      ✗ row {d.get('i')} {d.get('cvrNm')}: {d.get('detail')}")
 
-        # 2) 담보별 실시간 보험료 산출 — calRtimeCvrPrem(LTI0103804) 순차 호출
+        # 2) 담보별 실시간 보험료 산출 — calRtimeCvrPrem 을 배치로 발사.
+        #    가입금액은 1)에서 행마다 확정·고정됐고 콜백(callbackCalRtimeCvrPrem)은
+        #    userStringData 의 행 인덱스로 각 행에 독립 기록되므로, 호출을 묶어 보내도
+        #    정확도에 영향이 없다(간격은 서버부담 완화·콜백수신 대기용일 뿐).
         quoted = 0
         total = len(targets)
-        for n, idx in enumerate(targets, start=1):
+        batch = 20
+        for start in range(0, total, batch):
             res = self._ws("""(a) => {
                 var S = wsScope(), sc = S ? S.scwin : null;
                 var fds = wsDs('fds_ltApcCvrInfoDTO');
                 if (!sc || !fds || typeof sc.calRtimeCvrPrem !== 'function')
-                    return {error: 'calRtimeCvrPrem 없음'};
-                try { sc.calRtimeCvrPrem(fds, a.i, true); return {ok: true}; }
-                catch (e) { return {error: '' + e}; }
-            }""", {"i": idx}) or {}
-            if res.get("ok"):
-                quoted += 1
-            self.page.wait_for_timeout(1500)  # 실시간 산출(LTI0103804) 응답 대기
-            if n % 25 == 0 and n != total:
-                print(f"      · 산출 진행 {n}/{total}")
+                    return {ok: 0, error: 'calRtimeCvrPrem 없음'};
+                var ok = 0;
+                a.idxs.forEach(function (i) {
+                    try { sc.calRtimeCvrPrem(fds, i, true); ok++; } catch (e) {}
+                });
+                return {ok: ok};
+            }""", {"idxs": targets[start:start + batch]}) or {}
+            quoted += res.get("ok", 0)
+            self.page.wait_for_timeout(3000)  # 배치 실시간 산출(LTI0103804) 응답 대기
+            print(f"      · 산출 진행 {min(start + batch, total)}/{total}")
         print(f"    · {quoted}/{total}건 산출 요청 완료")
-        self.page.wait_for_timeout(5000)
+        self.page.wait_for_timeout(6000)  # 마지막 배치 콜백 드레인
 
         # 3) 산출 결과 진단 — limits_diag.json
         after = self._ws("""() => {
