@@ -24,7 +24,14 @@ def app_base_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-OUTPUT_DIR = app_base_dir() / "output"
+def _default_output_dir() -> Path:
+    """기본 저장 위치 — U 드라이브가 있으면 그쪽 KB보험료수집기 폴더, 없으면 실행파일 옆."""
+    if Path("U:/").exists():
+        return Path("U:/KB보험료수집기")
+    return app_base_dir() / "output"
+
+
+OUTPUT_DIR = _default_output_dir()
 DEBUG_DIR = app_base_dir() / "debug"
 
 
