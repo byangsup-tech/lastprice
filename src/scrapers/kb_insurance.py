@@ -187,6 +187,11 @@ class KBInsuranceScraper(BaseScraper):
             self._close_calculator_if_popup()
         product.cond_sex = self._cond["sex_label"]
         product.cond_age = self._cond["age"]
+        product.cond_occupation = self._cond["occupation_query"]
+        product.cond_driving = self._cond["drivType_label"]
+        product.cond_underwriting = self._cond["uwType_label"]
+        product.cond_waiver = self._cond["waiver_label"]
+        product.cond_plan = self._cond["plan_label"]
         product.cond_insurance_period = self._cond["maturity_label"]
         product.cond_payment_period = self._cond["payYears_label"]
         if product.error:

@@ -12,11 +12,13 @@ HEADER_FILL = PatternFill("solid", fgColor="305496")
 HEADER_FONT = Font(bold=True, color="FFFFFF")
 CENTER = Alignment(horizontal="center", vertical="center")
 
-HEADERS = ["회사", "상품코드", "상품명", "성별", "연령", "보험기간", "납입기간",
+HEADERS = ["회사", "상품코드", "상품명", "성별", "연령", "직업", "운전형태",
+           "심사고지유형", "납입면제", "플랜", "보험기간", "납입기간",
            "특약명", "비고", "최저가입금액", "최고가입금액", "설계금액",
            "납기", "만기", "월보험료(원)", "수집일시"]
-AMOUNT_COLS = (10, 11, 12, 15)   # 최저·최고·설계금액·월보험료 — 천단위 구분
-COL_WIDTHS = [12, 10, 40, 6, 6, 10, 10, 44, 10, 13, 13, 13, 10, 10, 13, 20]
+AMOUNT_COLS = (15, 16, 17, 20)   # 최저·최고·설계금액·월보험료 — 천단위 구분
+COL_WIDTHS = [12, 10, 36, 6, 6, 12, 10, 12, 14, 12, 10, 10, 42, 10,
+              13, 13, 13, 10, 10, 13, 20]
 
 
 def write_long_workbook(company: str, products: list[Product], output_dir: Path) -> Path:
@@ -40,8 +42,11 @@ def write_long_workbook(company: str, products: list[Product], output_dir: Path)
     r = 1
     for product in products:
         captured = product.captured_at.strftime("%Y-%m-%d %H:%M:%S")
-        base = [company, product.code or "", product.name, product.cond_sex,
-                _as_int(product.cond_age), product.cond_insurance_period,
+        base = [company, product.code or "", product.name,
+                product.cond_sex, _as_int(product.cond_age),
+                product.cond_occupation, product.cond_driving,
+                product.cond_underwriting, product.cond_waiver,
+                product.cond_plan, product.cond_insurance_period,
                 product.cond_payment_period]
         # 특약 0건(수집 실패)이면 조건 식별용 1행이라도 남긴다
         for rider in (product.riders or [None]):

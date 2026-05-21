@@ -18,6 +18,7 @@ from contextlib import redirect_stdout
 from flask import Flask, jsonify, request, send_file
 
 from src.runner import OUTPUT_DIR, run_collection
+from src.scrapers.kb_insurance import CONDITION
 
 app = Flask(__name__)
 
@@ -71,7 +72,16 @@ def index():
 
 @app.route("/defaults")
 def defaults():
-    return jsonify({"output_dir": str(OUTPUT_DIR)})
+    return jsonify({
+        "output_dir": str(OUTPUT_DIR),
+        "fixed": {
+            "occupation": CONDITION["occupation_query"],
+            "driving": CONDITION["drivType_label"],
+            "underwriting": CONDITION["uwType_label"],
+            "waiver": CONDITION["waiver_label"],
+            "plan": CONDITION["plan_label"],
+        },
+    })
 
 
 @app.route("/run", methods=["POST"])
@@ -323,6 +333,15 @@ PAGE = """<!DOCTYPE html>
   }
   .dir-btn:disabled { opacity: .5; cursor: not-allowed; }
 
+  .fixed-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fx {
+    display: flex; align-items: baseline; gap: 7px;
+    padding: 7px 11px; background: var(--primary-tint);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .fx-k { font-size: 11px; color: var(--text-3); font-weight: 600; }
+  .fx-v { font-size: 12.5px; color: var(--text); font-weight: 600; }
+
   .cases {
     border: 1px solid var(--border); border-radius: var(--radius);
     overflow: hidden; background: #fff;
@@ -570,6 +589,20 @@ PAGE = """<!DOCTYPE html>
         </div>
         <div class="add-row">
           <button class="add-btn" type="button" id="addBtn"><span class="plus">+</span>조건 추가</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="field-row">
+          <span class="field-label">공통 조건 <span style="color:var(--text-3);font-weight:400;">— 모든 케이스 공통 · 현재 고정값</span></span>
+          <span class="field-hint">추후 선택 가능 예정</span>
+        </div>
+        <div class="fixed-grid">
+          <div class="fx"><span class="fx-k">직업</span><span class="fx-v" id="fxOccupation">—</span></div>
+          <div class="fx"><span class="fx-k">운전형태</span><span class="fx-v" id="fxDriving">—</span></div>
+          <div class="fx"><span class="fx-k">심사고지유형</span><span class="fx-v" id="fxUnderwriting">—</span></div>
+          <div class="fx"><span class="fx-k">납입면제</span><span class="fx-v" id="fxWaiver">—</span></div>
+          <div class="fx"><span class="fx-k">플랜</span><span class="fx-v" id="fxPlan">—</span></div>
         </div>
       </div>
 
@@ -890,6 +923,13 @@ document.addEventListener('keydown', function(e){
 fetch('/defaults').then(function(r){ return r.json(); }).then(function(j){
   var f = document.getElementById('outputDir');
   if (j.output_dir && !f.value) f.value = j.output_dir;
+  var fx = j.fixed || {};
+  function setFx(id, v){ var el = document.getElementById(id); if (el) el.textContent = v || '—'; }
+  setFx('fxOccupation', fx.occupation);
+  setFx('fxDriving', fx.driving);
+  setFx('fxUnderwriting', fx.underwriting);
+  setFx('fxWaiver', fx.waiver);
+  setFx('fxPlan', fx.plan);
 }).catch(function(){});
 poll();
 </script>
