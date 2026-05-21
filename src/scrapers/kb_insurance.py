@@ -141,16 +141,19 @@ class KBInsuranceScraper(BaseScraper):
     # ------------------------------------------------------------------ #
     # 단일 상품 — 멀티 조건
     # ------------------------------------------------------------------ #
-    def quote_product_profiles(self, product_meta: dict) -> list[Product]:
-        """CONDITION_PROFILES 의 조건마다 계산기를 새로 열어 1회씩 산출.
+    def quote_product_profiles(self, product_meta: dict,
+                               profiles: list[dict]) -> list[Product]:
+        """주어진 조건 프로파일마다 계산기를 새로 열어 1회씩 산출.
 
         조건(성별·나이·보험기간·납입기간)은 계산기 진입 첫 화면에서 넣는 값이라,
         프로파일마다 팝업을 새로 띄워 깨끗한 상태에서 입력한다. 한 상품이 조건 수
-        만큼의 Product(각각 그 조건의 산출결과)로 반환된다.
+        만큼의 Product(각각 그 조건의 산출결과)로 반환된다. profiles 의 각 dict 는
+        sex_label·age·maturity_label·payYears_label 키로 CONDITION 을 덮어쓴다.
+        CLI 기본값은 모듈 상수 CONDITION_PROFILES.
         """
         results: list[Product] = []
-        n = len(CONDITION_PROFILES)
-        for k, profile in enumerate(CONDITION_PROFILES, start=1):
+        n = len(profiles)
+        for k, profile in enumerate(profiles, start=1):
             self._cond = {**CONDITION, **profile}
             print(f"    [조건 {k}/{n}] {self._cond['sex_label']} {self._cond['age']}세 "
                   f"/ {self._cond['maturity_label']}만기 / {self._cond['payYears_label']}납")

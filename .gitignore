@@ -10,4 +10,7 @@ output/*.xlsx
 debug/*.png
 debug/*.html
 debug/*.mhtml
+debug/**/*.json
 .DS_Store
+build/
+dist/
