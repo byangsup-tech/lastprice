@@ -273,7 +273,9 @@ class KBInsuranceScraper(BaseScraper):
                 return r
             inp.click()
             inp.fill(str(age))
-            inp.press("Tab")  # blur → change/onviewchange → 데이터셋 동기화
+            # 포커스 해제 → change/onviewchange. Tab 은 직업칸으로 포커스가 가서
+            # 자동완성 드롭다운이 떠 아래 운전형태 콤보를 가리므로 blur 를 쓴다.
+            inp.blur()
             self._ws_frame.wait_for_timeout(800)
             val = self._ws("""() => {
                 try {
