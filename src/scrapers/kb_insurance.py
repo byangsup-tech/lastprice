@@ -56,11 +56,7 @@ CONDITION = {
 # 납입면제·플랜은 CONDITION 고정값 유지). 행을 추가·삭제해 조정한다.
 CONDITION_PROFILES = [
     {"sex_label": "남", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
-    {"sex_label": "남", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
-    {"sex_label": "남", "age": "60", "maturity_label": "100세", "payYears_label": "20년"},
-    {"sex_label": "여", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
     {"sex_label": "여", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
-    {"sex_label": "여", "age": "70", "maturity_label": "100세", "payYears_label": "20년"},
 ]
 
 # 모든 evaluate 앞에 붙는 WebSquare 헬퍼.
