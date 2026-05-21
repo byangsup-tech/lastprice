@@ -220,9 +220,12 @@ class KBInsuranceScraper(BaseScraper):
         diag = []
         diag.append(self._ws_set_value("_cmb_sexCd", CONDITION["sex_value"], "성별"))
         diag.append(self._ws_set_value("_ipt_insAge", CONDITION["age"], "나이"))
-        diag.append(self._ws_set_select_any(CONDITION["drivType_label"], "운전형태"))
-        diag.append(self._ws_set_select_any(CONDITION["uwType_label"], "심사고지유형"))
-        diag.append(self._ws_set_select_any(CONDITION["waiver_label"], "납입면제"))
+        diag.append(self._fill_combo("운전형태", CONDITION["drivType_label"],
+                                     suffix="_cmb_drivTdcd"))
+        diag.append(self._fill_combo("심사고지유형", CONDITION["uwType_label"],
+                                     row_label="심사고지유형"))
+        diag.append(self._fill_combo("납입면제", CONDITION["waiver_label"],
+                                     row_label="납입면제"))
         diag.append(self._ws_set_radio("rdo_0001963", CONDITION["payYears_label"], "납기"))
         diag.append(self._ws_set_radio("rdo_0001966", CONDITION["maturity_label"], "만기"))
         diag.append(self._ws_set_radio("", CONDITION["plan_label"], "플랜"))
@@ -256,35 +259,62 @@ class KBInsuranceScraper(BaseScraper):
                                           else f"found={r.get('found')} {r.get('setErr','')}")
         return r
 
-    def _ws_set_select_any(self, label: str, field: str) -> dict:
-        """모든 select1(콤보)을 훑어, 옵션목록(_itemTable)에 라벨을 가진 것을 선택.
+    def _fill_combo(self, field: str, label: str,
+                    suffix: Optional[str] = None,
+                    row_label: Optional[str] = None) -> dict:
+        """select1 minimal 콤보 — 클릭해 열고, 떠오른 옵션목록에서 라벨로 클릭.
 
-        콤보의 논리 id 를 몰라도 동작한다. 옵션 요소를 JS click 으로 선택하므로
-        드롭다운이 닫혀 있어도 클릭 핸들러가 발동. 실패 시 본 옵션을 진단에 남김.
+        WebSquare select1(minimal)은 옵션을 평소엔 DOM 에 두지 않고 열 때만 부유
+        목록으로 렌더한다. suffix(논리 id 끝) 또는 row_label(화면 필드라벨)로 콤보를
+        찾아 → 클릭해 열고 → 라벨 텍스트를 가진 보이는 leaf 요소를 클릭한다.
         """
-        r = self._ws("""(a) => {
-            var boxes = document.querySelectorAll('[role=combobox]'), seen = [];
-            for (var b = 0; b < boxes.length; b++) {
-                var id = boxes[b].id;
-                if (!id) continue;
-                var it = document.getElementById(id + '_itemTable');
-                if (!it) continue;
-                var opts = it.querySelectorAll('td, li, a');
-                for (var i = 0; i < opts.length; i++) {
-                    var t = (opts[i].innerText || opts[i].textContent || '').trim();
-                    if (!t) continue;
-                    seen.push(t);
-                    if (t.indexOf(a.label) >= 0) {
-                        opts[i].click();
-                        return {field: a.f, ok: true, picked: t, box: id.slice(-44)};
-                    }
+        r = {"field": field, "label": label}
+        cid = self._ws("""(a) => {
+            if (a.suffix) { var e = wsEl(a.suffix); return e ? e.id : null; }
+            var ls = document.querySelectorAll('div.w2textbox, th, span, nobr');
+            for (var i = 0; i < ls.length; i++) {
+                var tt = (ls[i].innerText || ls[i].textContent || '').trim();
+                if (tt.indexOf(a.rowLabel) >= 0 && tt.length <= a.rowLabel.length + 4) {
+                    var row = ls[i].closest('tr');
+                    var cs = (row || document).querySelectorAll('[role=combobox]');
+                    for (var j = 0; j < cs.length; j++)
+                        if (ls[i].compareDocumentPosition(cs[j]) & 4) return cs[j].id;
+                    if (cs.length) return cs[0].id;
                 }
             }
-            return {field: a.f, ok: false, seenOptions: seen.slice(0, 50)};
-        }""", {"label": label, "f": field}) or {}
-        r["ok"] = bool(r.get("ok"))
-        r["detail"] = (f"선택 {r.get('picked')}" if r["ok"]
-                       else f"라벨 '{label}' 가진 콤보 없음 (옵션표본 {r.get('seenOptions')})")
+            return null;
+        }""", {"suffix": suffix, "rowLabel": row_label})
+        if not cid:
+            r["ok"] = False
+            r["detail"] = "콤보 미발견 (suffix/row_label 둘 다 실패)"
+            return r
+        r["comboId"] = "…" + cid[-44:]
+        try:
+            self._ws_frame.locator("#" + cid).click(timeout=5000)
+        except Exception as e:
+            r["ok"] = False
+            r["detail"] = f"콤보 열기 실패: {type(e).__name__}"
+            return r
+        self._ws_frame.wait_for_timeout(700)
+        pick = self._ws("""(a) => {
+            var hits = [], cand = [];
+            document.querySelectorAll('li, td, a, span, div').forEach(function (n) {
+                var t = (n.innerText || n.textContent || '').trim();
+                if (!t || t.length > 50 || t.indexOf(a.label) < 0) return;
+                if (n.querySelector('li, td, a, span, div')) return;   // leaf 만
+                if (n.offsetParent === null) return;                   // 보이는 것만
+                cand.push({tag: n.tagName, cls: (n.className || '').slice(0, 40), text: t});
+                hits.push(n);
+            });
+            if (hits.length) {
+                hits[hits.length - 1].click();
+                return {ok: true, picked: cand[cand.length - 1], count: hits.length};
+            }
+            return {ok: false, candidates: cand.slice(0, 20)};
+        }""", {"label": label}) or {}
+        r["ok"] = bool(pick.get("ok"))
+        r["detail"] = (f"선택 {pick.get('picked')}" if r["ok"]
+                       else f"열었으나 옵션 '{label}' 미발견 (후보 {pick.get('candidates')})")
         return r
 
     def _ws_set_radio(self, name_frag: str, label: str, field: str) -> dict:
