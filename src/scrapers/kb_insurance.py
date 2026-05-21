@@ -57,8 +57,10 @@ CONDITION = {
 CONDITION_PROFILES = [
     {"sex_label": "남", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
     {"sex_label": "남", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "남", "age": "60", "maturity_label": "100세", "payYears_label": "20년"},
     {"sex_label": "여", "age": "40", "maturity_label": "100세", "payYears_label": "20년"},
     {"sex_label": "여", "age": "50", "maturity_label": "100세", "payYears_label": "20년"},
+    {"sex_label": "여", "age": "70", "maturity_label": "100세", "payYears_label": "20년"},
 ]
 
 # 모든 evaluate 앞에 붙는 WebSquare 헬퍼.
@@ -101,8 +103,8 @@ class KBInsuranceScraper(BaseScraper):
     _main_page = None   # 목록 페이지
     _ws_frame = None    # WebSquare 엔진이 사는 frame (WS_MAIN)
     _cond = CONDITION   # 현재 산출 조건 (quote_product_profiles 가 프로파일별로 교체)
-    # 담보 개별산출 상한 (0=전체). 멀티 조건 테스트용 100건 제한 — 검증 후 0으로.
-    CVR_VERIFY_LIMIT = 100
+    # 담보 개별산출 상한 (0=전체). 배치 산출 검증 완료 → 전체.
+    CVR_VERIFY_LIMIT = 0
 
     # ------------------------------------------------------------------ #
     # 상품 목록
