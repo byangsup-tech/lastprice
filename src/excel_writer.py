@@ -80,7 +80,8 @@ def _write_meta(ws, company: str, product: Product, cond: QuoteCondition) -> Non
 
 def _write_riders(ws, product: Product) -> None:
     start_row = 16
-    headers = ["No", "특약명", "최저가입금액", "설계금액", "월보험료(원)", "비고"]
+    headers = ["No", "특약명", "최저가입금액", "최고가입금액", "설계금액",
+               "납기", "만기", "월보험료(원)", "비고"]
     for c, h in enumerate(headers, start=1):
         cell = ws.cell(row=start_row, column=c, value=h)
         cell.fill = HEADER_FILL
@@ -92,10 +93,13 @@ def _write_riders(ws, product: Product) -> None:
         ws.cell(row=r, column=1, value=i).alignment = CENTER
         ws.cell(row=r, column=2, value=rider.name)
         ws.cell(row=r, column=3, value=rider.min_amount)
-        ws.cell(row=r, column=4, value=rider.selected_amount)
-        ws.cell(row=r, column=5, value=rider.premium)
-        ws.cell(row=r, column=6, value=rider.note)
+        ws.cell(row=r, column=4, value=rider.max_amount)
+        ws.cell(row=r, column=5, value=rider.selected_amount)
+        ws.cell(row=r, column=6, value=rider.pay_period)
+        ws.cell(row=r, column=7, value=rider.maturity)
+        ws.cell(row=r, column=8, value=rider.premium)
+        ws.cell(row=r, column=9, value=rider.note)
 
-    widths = [5, 50, 16, 16, 16, 30]
+    widths = [5, 48, 14, 14, 14, 10, 10, 14, 22]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w

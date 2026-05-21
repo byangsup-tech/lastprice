@@ -567,11 +567,15 @@ class KBInsuranceScraper(BaseScraper):
             if not name:
                 continue
             min_won = self._to_int(row.get("lowstNamt"))
+            max_won = self._to_int(row.get("bestNamt"))
             amt = self._to_int(row.get("achngCvrTnthwnUnitNtramt"))
             rider = Rider(
                 name=name,
                 min_amount=min_won,
+                max_amount=max_won,
                 selected_amount=amt * 10_000 if amt is not None else None,
+                pay_period=(row.get("pymnPrdValue") or "").strip(),
+                maturity=(row.get("insMtrtyValue") or "").strip(),
                 premium=self._to_int(row.get("achngCvrPrem")),
                 note="주계약" if row.get("basicCvrYn") == "Y" else "",
             )
