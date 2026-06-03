@@ -1,0 +1,3 @@
+# lastprice has zero required runtime dependencies (stdlib only).
+# Optional, if you prefer `requests` over urllib in your own adapters:
+# requests>=2.31
