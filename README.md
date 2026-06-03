@@ -58,6 +58,42 @@ Magic Eden lists in SOL. `fx.py` resolves the rate from `SOL_USD` env → live
 oracle (`SOL_USD_ORACLE_URL`, default CoinGecko) → `SOL_USD_FALLBACK`. Stable-
 coins (USDC/USDT) pass through as USD.
 
+## Web dashboard
+
+A zero-dependency web UI (pure stdlib server) shows opportunities as a table.
+
+```bash
+python -m lastprice --serve --port 8000        # demo data
+python -m lastprice --serve --live --port 8000 # live data (needs API keys)
+# open http://localhost:8000
+```
+
+Routes: `/` (dashboard), `/api/opportunities` (JSON), `/healthz`.
+Static snapshot for static hosting (GitHub Pages, S3, Netlify):
+
+```bash
+python -m lastprice --export-html public/index.html
+```
+
+### Launch / deploy
+
+Container (works on Render, Railway, Fly.io, Heroku, any Docker host):
+
+```bash
+docker build -t lastprice .
+docker run -p 8000:8000 lastprice          # -> http://localhost:8000
+```
+
+The image binds `$PORT`/`$HOST`, so PaaS platforms that inject `$PORT` work
+out of the box (also covered by the `Procfile`). For **live data** in
+production, run the container with `--live` and set `PPT_API_KEY`, `SOL_USD`,
+and `PHYGITALS_API_BASE` as environment variables:
+
+```bash
+docker run -p 8000:8000 -e PPT_API_KEY=... -e SOL_USD=150 \
+  lastprice python -m lastprice --serve --live --host 0.0.0.0 --port 8000
+```
+
 ## How it works
 
 ```
