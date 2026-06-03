@@ -26,7 +26,9 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
         SampleMarketAdapter(os.path.join(_EXAMPLES, "sample_phygitals_listings.json"), "phygitals"),
     ]
     price_source = SamplePriceSource(os.path.join(_EXAMPLES, "sample_prices.json"))
-    return ArbitrageEngine(adapters, price_source, min_spread_pct, min_spread_usd)
+    engine = ArbitrageEngine(adapters, price_source, min_spread_pct, min_spread_usd)
+    engine.mode = "demo"
+    return engine
 
 
 def build_live_engine(args) -> ArbitrageEngine:
@@ -40,7 +42,9 @@ def build_live_engine(args) -> ArbitrageEngine:
         PhygitalsAdapter(),
     ]
     price_source = PokemonPriceTrackerSource()
-    return ArbitrageEngine(adapters, price_source, args.min_spread_pct, args.min_spread_usd)
+    engine = ArbitrageEngine(adapters, price_source, args.min_spread_pct, args.min_spread_usd)
+    engine.mode = "live"
+    return engine
 
 
 def build_notifier(args):
@@ -89,6 +93,10 @@ def main(argv=None) -> int:
     p.add_argument("--alert", choices=["console", "discord"], help="send new opportunities as alerts")
     p.add_argument("--webhook", default=None, help="Discord webhook URL (or DISCORD_WEBHOOK_URL)")
     p.add_argument("--state-file", default=None, help="alert de-dup state file (default .lastprice_alerts.json)")
+    p.add_argument("--serve", action="store_true", help="run the web dashboard")
+    p.add_argument("--export-html", default=None, metavar="PATH", help="write a static HTML snapshot and exit")
+    p.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"), help="web server host")
+    p.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")), help="web server port")
     args = p.parse_args(argv)
 
     if args.check:
@@ -100,6 +108,19 @@ def main(argv=None) -> int:
         engine = build_live_engine(args)
     else:
         engine = build_demo_engine(args.min_spread_pct, args.min_spread_usd)
+
+    if args.export_html:
+        from .web import export_html
+
+        n = export_html(engine, args.export_html)
+        print(f"Wrote {args.export_html} ({n} opportunities).")
+        return 0
+
+    if args.serve:
+        from .web import serve
+
+        serve(engine, host=args.host, port=args.port)
+        return 0
 
     opps = engine.scan(query=args.query, limit=args.limit)
 
