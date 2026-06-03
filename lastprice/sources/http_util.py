@@ -17,3 +17,20 @@ def get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 
     req = urllib.request.Request(url, headers=h)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def post_json(
+    url: str,
+    payload: Any,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 15,
+) -> tuple[int, str]:
+    """POST ``payload`` as JSON. Returns ``(status_code, body)``."""
+    data = json.dumps(payload).encode("utf-8")
+    h = {"User-Agent": _UA, "Content-Type": "application/json"}
+    if headers:
+        h.update(headers)
+    req = urllib.request.Request(url, data=data, headers=h, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read().decode("utf-8") if resp.length != 0 else ""
+        return getattr(resp, "status", resp.getcode()), body

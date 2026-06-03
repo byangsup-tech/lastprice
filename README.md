@@ -27,11 +27,36 @@ Umbreon Vmax [Evolving Skies 215/203] PSA 10  phygitals          900     1,300  
 
 ```bash
 export PPT_API_KEY=...        # pokemonpricetracker.com API key
-export SOL_USD=150            # to convert Magic Eden SOL prices -> USD
-python -m lastprice --live --collection collector_crypt --limit 100
+export SOL_USD=150            # optional: pins SOL->USD (else live oracle/fallback)
+python -m lastprice --check                 # verify connectivity + config first
+python -m lastprice --live --limit 100
 ```
 
-Options: `--query`, `--limit`, `--min-spread-pct`, `--min-spread-usd`, `--json`.
+Live scans **Collector Crypt + Phygitals** (both via Magic Eden). Options:
+`--query`, `--limit`, `--min-spread-pct`, `--min-spread-usd`, `--json`,
+`--collection` (override CC symbol).
+
+### Self-check
+
+`python -m lastprice --check` pings every live endpoint and reports missing
+credentials — so a failing live run can be diagnosed as environmental (e.g. an
+allowlisted sandbox blocking outbound network) rather than a code bug.
+
+### Alerts
+
+Push new opportunities to console or a Discord webhook, with de-dup so the same
+listing/price isn't alerted twice across scheduled runs:
+
+```bash
+python -m lastprice --live --alert discord --webhook "$DISCORD_WEBHOOK_URL"
+python -m lastprice --demo --alert console --state-file alerts.json
+```
+
+### Currency (SOL → USD)
+
+Magic Eden lists in SOL. `fx.py` resolves the rate from `SOL_USD` env → live
+oracle (`SOL_USD_ORACLE_URL`, default CoinGecko) → `SOL_USD_FALLBACK`. Stable-
+coins (USDC/USDT) pass through as USD.
 
 ## How it works
 
@@ -66,8 +91,11 @@ then add it to the adapter list in `cli.build_live_engine`. The engine,
 matching, and scoring are untouched. Price sources extend the same way via
 `PriceSource`.
 
-Current adapters: Collector Crypt (Magic Eden API), sample/offline.
-Planned: Phygitals, Fanatics Collect, eBay sold-listings.
+Markets that share Magic Eden rails (Collector Crypt, Phygitals) subclass
+`sources/magic_eden.py` and only set a collection symbol + item URL.
+
+Current adapters: Collector Crypt, Phygitals (both Magic Eden), sample/offline.
+Planned: Fanatics Collect, eBay sold-listings.
 
 ## Data sources & legality
 

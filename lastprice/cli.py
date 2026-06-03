@@ -30,13 +30,28 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
 
 
 def build_live_engine(args) -> ArbitrageEngine:
-    """Live engine: Collector Crypt (Magic Eden) + PokemonPriceTracker."""
+    """Live engine: Collector Crypt + Phygitals (Magic Eden) + PokemonPriceTracker."""
     from .pricing.pokemonpricetracker import PokemonPriceTrackerSource
     from .sources.collector_crypt import CollectorCryptAdapter
+    from .sources.phygitals import PhygitalsAdapter
 
-    adapters = [CollectorCryptAdapter(collection_symbol=args.collection)]
+    adapters = [
+        CollectorCryptAdapter(collection_symbol=args.collection),
+        PhygitalsAdapter(),
+    ]
     price_source = PokemonPriceTrackerSource()
     return ArbitrageEngine(adapters, price_source, args.min_spread_pct, args.min_spread_usd)
+
+
+def build_notifier(args):
+    """Construct the alert notifier selected on the command line."""
+    if args.alert == "discord":
+        from .alerts import DiscordWebhookNotifier
+
+        return DiscordWebhookNotifier(args.webhook)
+    from .alerts import ConsoleNotifier
+
+    return ConsoleNotifier()
 
 
 def _print_table(opps: List[Opportunity]) -> None:
@@ -64,13 +79,22 @@ def main(argv=None) -> int:
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--demo", action="store_true", help="offline run with sample data (default)")
     mode.add_argument("--live", action="store_true", help="hit live Magic Eden + price APIs")
+    p.add_argument("--check", action="store_true", help="run connectivity/config self-check and exit")
     p.add_argument("--collection", default=None, help="Magic Eden collection symbol (live)")
     p.add_argument("--query", default=None, help="filter listings by substring")
     p.add_argument("--limit", type=int, default=50, help="max listings per marketplace")
     p.add_argument("--min-spread-pct", type=float, default=10.0)
     p.add_argument("--min-spread-usd", type=float, default=5.0)
     p.add_argument("--json", action="store_true", help="emit JSON instead of a table")
+    p.add_argument("--alert", choices=["console", "discord"], help="send new opportunities as alerts")
+    p.add_argument("--webhook", default=None, help="Discord webhook URL (or DISCORD_WEBHOOK_URL)")
+    p.add_argument("--state-file", default=None, help="alert de-dup state file (default .lastprice_alerts.json)")
     args = p.parse_args(argv)
+
+    if args.check:
+        from .selfcheck import run_checks
+
+        return 0 if run_checks() else 1
 
     if args.live:
         engine = build_live_engine(args)
@@ -83,6 +107,16 @@ def main(argv=None) -> int:
         print(json.dumps([o.to_dict() for o in opps], indent=2))
     else:
         _print_table(opps)
+
+    if args.alert:
+        from .alerts import AlertDispatcher
+
+        dispatcher = AlertDispatcher(
+            build_notifier(args),
+            state_path=args.state_file or ".lastprice_alerts.json",
+        )
+        new = dispatcher.dispatch(opps)
+        print(f"\n{len(new)} new alert(s) sent ({len(opps) - len(new)} already seen).")
     return 0
 
 
