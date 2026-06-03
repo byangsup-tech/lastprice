@@ -91,11 +91,19 @@ then add it to the adapter list in `cli.build_live_engine`. The engine,
 matching, and scoring are untouched. Price sources extend the same way via
 `PriceSource`.
 
-Markets that share Magic Eden rails (Collector Crypt, Phygitals) subclass
-`sources/magic_eden.py` and only set a collection symbol + item URL.
+Magic-Eden-based markets (e.g. Collector Crypt) subclass
+`sources/magic_eden.py` and only set a collection symbol + item URL. Markets
+with their own API (e.g. Phygitals — `phygitals.com/card/{slug}`, multi-TCG)
+get a standalone adapter with field mapping isolated in `_to_listing`.
 
-Current adapters: Collector Crypt, Phygitals (both Magic Eden), sample/offline.
-Planned: Fanatics Collect, eBay sold-listings.
+Current adapters: Collector Crypt (Magic Eden), Phygitals (native API),
+sample/offline. Planned: Fanatics Collect, eBay sold-listings.
+
+> **Phygitals note:** its public API schema isn't documented. Configure
+> `PHYGITALS_API_BASE` / `PHYGITALS_LISTINGS_PATH` and adjust
+> `PhygitalsAdapter._to_listing` to the live response before relying on it.
+> The Pokémon-centric set parser also won't detect non-Pokémon sets
+> (Riftbound, One Piece); name + number + grade still match cross-market.
 
 ## Data sources & legality
 
