@@ -24,12 +24,13 @@ class CardKey:
     number: str = ""
     grader: str = ""  # PSA / CGC / BGS / SGC / "" for raw (ungraded)
     grade: str = ""   # "10", "9.5", "" for raw
+    game: str = ""    # pokemon / riftbound / one piece / sports / magic / ...
 
     def canonical(self) -> str:
         """Stable join used as the dictionary key for matching."""
         return "|".join(
             _norm_token(p)
-            for p in (self.name, self.set_name, self.number, self.grader, self.grade)
+            for p in (self.game, self.name, self.set_name, self.number, self.grader, self.grade)
         )
 
     def __str__(self) -> str:
@@ -89,8 +90,16 @@ class Opportunity:
         return base
 
     def to_dict(self) -> Dict[str, Any]:
+        k = self.listing.card_key
+        grade_label = f"{k.grader} {k.grade}".strip() if (k.grader or k.grade) else "Raw"
         return {
-            "card": str(self.listing.card_key),
+            "card": str(k),
+            "name": k.name,
+            "game": k.game or "other",
+            "set": k.set_name,
+            "number": k.number,
+            "grader": k.grader or "Raw",
+            "grade_label": grade_label,
             "marketplace": self.listing.marketplace,
             "listing_price_usd": round(self.listing.price_usd, 2),
             "market_price_usd": round(self.quote.market_price_usd, 2),

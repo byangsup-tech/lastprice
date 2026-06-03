@@ -36,6 +36,31 @@ KNOWN_SETS = {
     "prismatic evolutions": "Prismatic Evolutions",
 }
 
+# Non-Pokémon game detection by keyword. Pokémon is inferred from a known set
+# or explicit "pokemon". Order matters; first match wins.
+_GAME_KEYWORDS = [
+    ("riftbound", ["riftbound", "league of legend", "league of legends"]),
+    ("one piece", ["one piece", "onepiece"]),
+    ("lorcana", ["lorcana"]),
+    ("magic", ["magic the gathering", " mtg ", "black lotus", "mox "]),
+    ("yugioh", ["yu-gi-oh", "yugioh", "yu gi oh"]),
+    ("sports", [
+        "topps", "panini", "prizm", "bowman", "donruss", "upper deck",
+        "rookie", " nba ", " nfl ", " mlb ", "fifa", "select",
+    ]),
+]
+
+
+def detect_game(low: str, set_name: str) -> str:
+    padded = f" {low} "
+    for game, kws in _GAME_KEYWORDS:
+        if any(k in padded for k in kws):
+            return game
+    if set_name or "pokemon" in low or "pokémon" in low:
+        return "pokemon"
+    return "other"
+
+
 _NOISE_RE = re.compile(
     r"\b(holo|holographic|1st\s*edition|first\s*edition|shadowless|reverse|"
     r"foil|promo|rare|graded|gem\s*mint|mint)\b",
@@ -81,6 +106,10 @@ def parse_card_title(title: str) -> CardKey:
         if ma:
             number = ma.group(1).upper()
 
-    set_name = _detect_set(t.lower())
+    low = t.lower()
+    set_name = _detect_set(low)
+    game = detect_game(low, set_name)
     name = _extract_name(t)
-    return CardKey(name=name, set_name=set_name, number=number, grader=grader, grade=grade)
+    return CardKey(
+        name=name, set_name=set_name, number=number, grader=grader, grade=grade, game=game
+    )

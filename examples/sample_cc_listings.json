@@ -1,6 +1,12 @@
 [
   {"title": "Charizard - 4/102 - Base Set - PSA 10", "price_usd": 4200, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-char-001", "id": "cc-char-001"},
+  {"title": "Blastoise - 2/102 - Base Set - PSA 8", "price_usd": 520, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-blas-004", "id": "cc-blas-004"},
   {"title": "Pikachu - 58/102 - Base Set - PSA 9", "price_usd": 180, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-pika-002", "id": "cc-pika-002"},
   {"title": "Mewtwo - 10/102 - Base Set - CGC 9", "price_usd": 300, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-mew-003", "id": "cc-mew-003"},
-  {"title": "Blastoise - 2/102 - Base Set - PSA 8", "price_usd": 520, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-blas-004", "id": "cc-blas-004"}
+  {"title": "Lugia - 9/111 - Neo Genesis - BGS 8.5", "price_usd": 700, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-lugia-005", "id": "cc-lugia-005"},
+  {"title": "Ahri - 012/298 - Riftbound - PSA 9", "price_usd": 90, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-ahri-006", "id": "cc-ahri-006"},
+  {"title": "Monkey D Luffy - 120/120 - One Piece - PSA 10", "price_usd": 230, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-luffy-007", "id": "cc-luffy-007"},
+  {"title": "2003 Topps Chrome LeBron James #111 - PSA 9", "price_usd": 8000, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-lebron-008", "id": "cc-lebron-008"},
+  {"title": "2020 Panini Prizm Justin Herbert #325 - BGS 9.5", "price_usd": 250, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-herbert-009", "id": "cc-herbert-009"},
+  {"title": "Black Lotus - Unlimited - Magic the Gathering - CGC 7", "price_usd": 9000, "marketplace": "collector_crypt", "url": "https://collectorcrypt.com/card/cc-lotus-010", "id": "cc-lotus-010"}
 ]

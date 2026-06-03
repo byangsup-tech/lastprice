@@ -60,7 +60,13 @@ coins (USDC/USDT) pass through as USD.
 
 ## Web dashboard
 
-A zero-dependency web UI (pure stdlib server) shows opportunities as a table.
+A zero-dependency, Blur-style trading terminal (pure stdlib server). Dense dark
+UI with a stats strip (total edge, avg/best %, market & game counts), live
+client-side **search**, **sort** (best / edge $ / edge % / 24h / price), faceted
+**filters** for game (Pokémon, Riftbound, One Piece, sports, Magic, …),
+marketplace and grader, plus **table/grid** views and 20s auto-refresh.
+Opportunities are inlined as JSON, so the exported HTML is fully interactive
+with no backend.
 
 ```bash
 python -m lastprice --serve --port 8000        # demo data
