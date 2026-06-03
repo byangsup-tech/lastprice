@@ -101,6 +101,7 @@ class Opportunity:
             "grader": k.grader or "Raw",
             "grade_label": grade_label,
             "marketplace": self.listing.marketplace,
+            "image": self.listing.extra.get("image", ""),
             "listing_price_usd": round(self.listing.price_usd, 2),
             "market_price_usd": round(self.quote.market_price_usd, 2),
             "spread_usd": round(self.spread_usd, 2),
