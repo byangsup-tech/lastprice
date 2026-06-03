@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import List
 
 from .activity import ActivityTracker
+from .catalog import build_catalog_from_engine
 from .engine import ArbitrageEngine
 from .models import Opportunity
 
@@ -143,6 +144,29 @@ _TEMPLATE = r"""<!doctype html>
   .ev .when{color:var(--dim);font-size:11.5px;white-space:nowrap}
   .ev .px{font-variant-numeric:tabular-nums;font-weight:600}
   .note{color:var(--amber);font-size:11.5px;padding:8px 16px;background:#1a160d;border-bottom:1px solid var(--line)}
+  /* card detail drawer */
+  .drawer-bg{position:fixed;inset:0;background:#000a;z-index:20;display:none}
+  .drawer-bg.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:440px;max-width:94vw;background:var(--panel);
+    border-left:1px solid var(--line);z-index:21;transform:translateX(100%);transition:transform .18s;
+    display:flex;flex-direction:column;overflow:auto}
+  .drawer.open{transform:none}
+  .dclose{position:absolute;top:12px;right:14px;cursor:pointer;color:var(--dim);font-size:22px;background:none;border:0}
+  .dh{display:flex;gap:13px;padding:20px 18px;border-bottom:1px solid var(--line);align-items:center}
+  .dh img{width:64px;height:64px;border-radius:12px}
+  .dh .nm{font-weight:700;font-size:16px}
+  .dh .sub{color:var(--dim);font-size:12px;margin-top:3px}
+  .sec{padding:14px 18px;border-bottom:1px solid var(--line)}
+  .sec h5{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim)}
+  .opt-row{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:8px;background:var(--panel2)}
+  .opt-row.best{border-color:#1f3d33;background:#10211b}
+  .opt-row .mk{flex:1;min-width:0}
+  .opt-row .pr{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tag{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--chip);color:var(--accent)}
+  .reco{padding:12px 18px;background:#10211b;color:var(--green);font-weight:600;font-size:13px}
+  .evp{font-size:11.5px;color:var(--dim);margin-top:2px;white-space:normal}
+  .pos{color:var(--green)} .neg{color:var(--red)}
   footer{padding:14px 18px;color:#4d5667;font-size:11.5px;border-top:1px solid var(--line)}
   @media(max-width:860px){.layout{grid-template-columns:1fr}.sidebar{display:none}
     .stats{grid-template-columns:repeat(3,1fr)}.topbar .glob{flex:1}}
@@ -222,6 +246,9 @@ _TEMPLATE = r"""<!doctype html>
   </div>
 </div>
 
+<div class="drawer-bg" id="drawerbg"></div>
+<div class="drawer" id="drawer"><button class="dclose" id="dclose">×</button><div id="drawerbody"></div></div>
+
 <footer>
   Prices are estimates; verify before buying. Not financial advice. Sparklines are
   illustrative (reconstructed from the 24h trend until a historical price feed is wired).
@@ -230,6 +257,7 @@ _TEMPLATE = r"""<!doctype html>
 
 <script>
 const RAW = /*__DATA__*/[];
+const CARDS = /*__CARDS__*/[];
 const MODE = "__MODE__";
 const UPDATED = "__UPDATED__";
 const GAME_ICON = {pokemon:"⚡",riftbound:"🗡️","one piece":"🏴‍☠️",sports:"🏀",
@@ -339,7 +367,7 @@ function renderTable(rows){
   const head="<tr>"+COLS.map(([f,l,r])=>{
     const ar=(COL_SORT[f]===state.sort)?' <span class="ar">▼</span>':"";
     return `<th class="${r?'r':''}" data-col="${f}">${l}${ar}</th>`;}).join("")+"</tr>";
-  const body=rows.map(o=>`<tr>
+  const body=rows.map(o=>`<tr data-key="${o.key}" style="cursor:pointer">
     <td><img class="thumb" src="${thumb(o,40)}" alt=""></td>
     <td><div class="cardcell"><span class="nm">${o.name}</span>
       <span class="meta">${[o.set,o.number].filter(Boolean).join(" · ")||"&nbsp;"}</span></div></td>
@@ -360,7 +388,7 @@ function renderTable(rows){
 
 function renderGrid(rows){
   $("#gridwrap").innerHTML=rows.length?rows.map(o=>`
-    <div class="gcard">
+    <div class="gcard" data-key="${o.key}" style="cursor:pointer">
       <div class="top"><img src="${thumb(o,48)}" alt="">
         <div><div class="nm">${o.name}</div>
           <div class="sub">${GAME_ICON[o.game]||"🎴"} ${titleCase(o.game)} · ${o.grade_label}</div></div></div>
@@ -380,7 +408,7 @@ function synthActivity(){
   const rows=DATA.slice().sort((a,b)=>b.score-a.score);
   return rows.map((o,i)=>{
     let type=o.trend_pct_24h>=12?"hot":(i%3===1?"price_down":"new");
-    return {type,card:o.card,game:o.game,marketplace:o.marketplace,
+    return {type,card:o.card,key:o.key,game:o.game,marketplace:o.marketplace,
       price_usd:o.listing_price_usd,
       prev_price_usd:type==="price_down"?Math.round(o.listing_price_usd*1.12):null,
       spread_pct:o.spread_pct,url:o.url,_mins:4+(i*13)%240};});}
@@ -393,7 +421,7 @@ function renderActivity(){
     const [ic,label]=EV_META[e.type]||["•","Update"];
     const px=e.prev_price_usd?`<span class="down">${money(e.price_usd)}</span> <span class="s">from ${money(e.prev_price_usd)}</span>`
       :`<span class="px">${money(e.price_usd)}</span>`;
-    return `<div class="ev"><div class="ic">${ic}</div>
+    return `<div class="ev" data-key="${e.key||''}" style="cursor:pointer"><div class="ic">${ic}</div>
       <div class="mid"><div class="t">${label} · <a href="${e.url||'#'}" target="_blank" rel="noopener">${e.card}</a></div>
         <div class="s">${GAME_ICON[e.game]||"🎴"} ${titleCase(e.game)} · ${titleCase((e.marketplace||"").replace(/_/g," "))} · ${(e.spread_pct||0).toFixed(0)}% edge</div></div>
       <div style="text-align:right">${px}<div class="when">${relTime(e._mins||3)}</div></div></div>`;}).join("")
@@ -417,6 +445,48 @@ function initPriceRange(){
   $("#minprice").value=0;$("#maxprice").value=mx;
   state.minprice=0;state.maxprice=mx;
   $("#minpricev").textContent="$0";$("#maxpricev").textContent=money(mx);}
+
+/* ---------- card detail drawer: where to BUY and where to PULL ---------- */
+let CARDMAP=Object.fromEntries(CARDS.map(c=>[c.key,c]));
+function vsMarket(price,mkt){if(!mkt)return"";const d=(mkt-price)/mkt*100;
+  const cls=d>=0?"pos":"neg";return `<span class="${cls}">${d>=0?"−":"+"}${Math.abs(d).toFixed(0)}% vs market</span>`;}
+function openCard(key){
+  const c=CARDMAP[key];if(!c)return;
+  const mv=c.market_price, cd=c.cheapest_direct_usd, bg=c.best_gacha_cost_usd;
+  const buy=c.listings.length?c.listings.map((l,i)=>`
+    <div class="opt-row ${i===0?'best':''}">
+      <div class="mk">${titleCase(l.marketplace.replace(/_/g,' '))}${i===0?' <span class="tag">cheapest</span>':''}
+        <div class="evp">${mv?vsMarket(l.price_usd,mv):''}</div></div>
+      <div class="pr">${money(l.price_usd)}</div>
+      <a class="buy" href="${l.url||'#'}" target="_blank" rel="noopener">Buy →</a>
+    </div>`).join(''):'<div class="evp">No direct listing available right now.</div>';
+  const gacha=c.gacha.length?c.gacha.map((g,i)=>{
+    const cheaper=cd!=null&&g.expected_cost_usd<cd;
+    return `<div class="opt-row ${i===0?'best':''}">
+      <div class="mk">${g.name} <span class="tag">${titleCase(g.marketplace.replace(/_/g,' '))}</span>
+        <div class="evp">pull ${money(g.pull_cost_usd)} · ${(g.odds*100).toFixed(1)}% odds · ~${g.expected_pulls} pulls ·
+          pack EV <span class="${g.pack_ev_usd>=0?'pos':'neg'}">${g.pack_ev_usd>=0?'+':''}${money(g.pack_ev_usd)}</span></div>
+        <div class="evp">expected cost to hit: <b>${money(g.expected_cost_usd)}</b>
+          ${cd!=null?`<span class="${cheaper?'pos':'neg'}">(${cheaper?'cheaper':'pricier'} than buying)</span>`:''}</div></div>
+      <a class="buy" href="${g.url||'#'}" target="_blank" rel="noopener">Open pack →</a>
+    </div>`;}).join(''):'<div class="evp">No gacha pool currently offers this card.</div>';
+  let reco='';
+  if(cd!=null&&bg!=null)reco=bg<cd
+    ?`Cheapest path: pulling is cheaper in expectation (~${money(bg)}) than buying (${money(cd)}) — but gacha carries variance.`
+    :`Cheapest path: buy directly for ${money(cd)} (gacha expected ~${money(bg)}).`;
+  else if(cd!=null)reco=`Only available to buy — cheapest ${money(cd)}.`;
+  else if(bg!=null)reco=`Only available via gacha — expected ~${money(bg)} to hit.`;
+  $("#drawerbody").innerHTML=`
+    <div class="dh"><img src="${thumb(c,64)}" alt="">
+      <div><div class="nm">${c.name}</div>
+        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)} · ${c.grade_label}${[c.set,c.number].filter(Boolean).length?' · '+[c.set,c.number].filter(Boolean).join(' · '):''}</div>
+        <div class="sub">market value ${mv?money(mv):'—'}</div></div></div>
+    ${reco?`<div class="reco">${reco}</div>`:''}
+    <div class="sec"><h5>🛒 Buy directly (${c.listings.length})</h5>${buy}</div>
+    <div class="sec"><h5>🎰 Pull via gacha (${c.gacha.length})</h5>${gacha}</div>`;
+  $("#drawerbg").classList.add('open');$("#drawer").classList.add('open');
+}
+function closeDrawer(){$("#drawerbg").classList.remove('open');$("#drawer").classList.remove('open');}
 
 function init(){
   const mp=$("#modepill");mp.textContent="mode "+MODE;mp.classList.add(MODE);
@@ -452,15 +522,28 @@ function init(){
     if([...$("#sort").options].some(o=>o.value===s))$("#sort").value=s;render();});
   $("#refresh").addEventListener("click",refresh);
   setInterval(()=>{if($("#auto").checked)refresh();},20000);
+
+  // open card detail when a row / grid card / activity item is clicked
+  $(".content").addEventListener("click",e=>{
+    if(e.target.closest("a"))return;            // let Buy links work
+    if(e.target.closest("th[data-col]"))return; // header sort handled elsewhere
+    const el=e.target.closest("[data-key]");
+    if(el&&el.dataset.key)openCard(el.dataset.key);
+  });
+  $("#dclose").addEventListener("click",closeDrawer);
+  $("#drawerbg").addEventListener("click",closeDrawer);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
 }
 
 async function refresh(){
   try{
-    const [r1,r2]=await Promise.all([
+    const [r1,r2,r3]=await Promise.all([
       fetch("/api/opportunities",{cache:"no-store"}),
-      fetch("/api/activity",{cache:"no-store"}).catch(()=>null)]);
+      fetch("/api/activity",{cache:"no-store"}).catch(()=>null),
+      fetch("/api/catalog",{cache:"no-store"}).catch(()=>null)]);
     if(r1&&r1.ok){const d=await r1.json();if(Array.isArray(d)){DATA=d;rebuildFacets();}}
     if(r2&&r2.ok){const a=await r2.json();if(Array.isArray(a))ACTIVITY=a;}
+    if(r3&&r3.ok){const c=await r3.json();if(Array.isArray(c))CARDMAP=Object.fromEntries(c.map(x=>[x.key,x]));}
     render();
   }catch(e){/* static file:// — keep inlined data + synthesized activity */}
 }
@@ -477,10 +560,16 @@ def _payload(opps: List[Opportunity]):
 
 def render_html(opps: List[Opportunity], engine: ArbitrageEngine) -> str:
     data = json.dumps(_payload(opps)).replace("<", "\\u003c")
+    try:
+        catalog = build_catalog_from_engine(engine)
+    except Exception:
+        catalog = []
+    cards = json.dumps(catalog).replace("<", "\\u003c")
     mode = getattr(engine, "mode", "live")
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     return (
         _TEMPLATE.replace("/*__DATA__*/[]", data)
+        .replace("/*__CARDS__*/[]", cards)
         .replace("__MODE__", mode)
         .replace("__UPDATED__", updated)
     )
@@ -504,6 +593,12 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/activity"):
             feed = self.tracker.feed() if self.tracker else []
             return self._send(200, json.dumps(feed, indent=2), "application/json; charset=utf-8")
+        if self.path.startswith("/api/catalog"):
+            try:
+                cat = build_catalog_from_engine(self.engine)
+            except Exception:
+                cat = []
+            return self._send(200, json.dumps(cat, indent=2), "application/json; charset=utf-8")
         opps = self.engine.scan()
         if self.tracker:
             self.tracker.record(opps)

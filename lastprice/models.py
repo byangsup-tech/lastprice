@@ -94,6 +94,7 @@ class Opportunity:
         grade_label = f"{k.grader} {k.grade}".strip() if (k.grader or k.grade) else "Raw"
         return {
             "card": str(k),
+            "key": k.canonical(),
             "name": k.name,
             "game": k.game or "other",
             "set": k.set_name,

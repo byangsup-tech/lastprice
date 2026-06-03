@@ -30,6 +30,7 @@ class ActivityTracker:
         return {
             "type": etype,
             "card": str(o.listing.card_key),
+            "key": o.listing.card_key.canonical(),
             "game": o.listing.card_key.game or "other",
             "marketplace": o.listing.marketplace,
             "price_usd": round(o.listing.price_usd, 2),

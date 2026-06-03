@@ -1,0 +1,48 @@
+[
+  {
+    "name": "Vintage Vault Pack",
+    "marketplace": "collector_crypt",
+    "pull_cost_usd": 120,
+    "url": "https://collectorcrypt.com/gacha/vintage-vault",
+    "cards": [
+      {"title": "Charizard - 4/102 - Base Set - PSA 10", "odds": 0.008},
+      {"title": "Lugia - 9/111 - Neo Genesis - BGS 8.5", "odds": 0.02},
+      {"title": "Blastoise - 2/102 - Base Set - PSA 8", "odds": 0.04},
+      {"title": "Mewtwo - 10/102 - Base Set - CGC 9", "odds": 0.08},
+      {"title": "Pikachu - 58/102 - Base Set - PSA 9", "odds": 0.15}
+    ]
+  },
+  {
+    "name": "Modern Slab Pack",
+    "marketplace": "collector_crypt",
+    "pull_cost_usd": 35,
+    "url": "https://collectorcrypt.com/gacha/modern-slab",
+    "cards": [
+      {"title": "Umbreon VMAX - 215/203 - Evolving Skies - PSA 10", "odds": 0.012},
+      {"title": "Moonbreon Umbreon VMAX - 215/203 - Evolving Skies - PSA 9", "odds": 0.04},
+      {"title": "Rayquaza VMAX - 218/203 - Evolving Skies - PSA 10", "odds": 0.06},
+      {"title": "Charizard ex - 199/165 - 151 - PSA 10", "odds": 0.09}
+    ]
+  },
+  {
+    "name": "Riftbound Booster",
+    "marketplace": "phygitals",
+    "pull_cost_usd": 12,
+    "url": "https://www.phygitals.com/gacha/riftbound-booster",
+    "cards": [
+      {"title": "Jinx - 045/298 - Riftbound - PSA 10", "odds": 0.05},
+      {"title": "Viktor - 100/298 - Riftbound - CGC 9.5", "odds": 0.1},
+      {"title": "Ahri - 012/298 - Riftbound - PSA 9", "odds": 0.18}
+    ]
+  },
+  {
+    "name": "One Piece Treasure Pack",
+    "marketplace": "phygitals",
+    "pull_cost_usd": 25,
+    "url": "https://www.phygitals.com/gacha/one-piece-treasure",
+    "cards": [
+      {"title": "Monkey D Luffy - 120/120 - One Piece - PSA 10", "odds": 0.05},
+      {"title": "Roronoa Zoro - 119/120 - One Piece - PSA 9", "odds": 0.12}
+    ]
+  }
+]

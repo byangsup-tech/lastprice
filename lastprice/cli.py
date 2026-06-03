@@ -28,6 +28,9 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
     price_source = SamplePriceSource(os.path.join(_EXAMPLES, "sample_prices.json"))
     engine = ArbitrageEngine(adapters, price_source, min_spread_pct, min_spread_usd)
     engine.mode = "demo"
+    from .gacha import SampleGachaSource
+
+    engine.gacha_source = SampleGachaSource(os.path.join(_EXAMPLES, "sample_gacha.json"))
     return engine
 
 
@@ -44,6 +47,7 @@ def build_live_engine(args) -> ArbitrageEngine:
     price_source = PokemonPriceTrackerSource()
     engine = ArbitrageEngine(adapters, price_source, args.min_spread_pct, args.min_spread_usd)
     engine.mode = "live"
+    engine.gacha_source = None  # wire a live gacha source when available
     return engine
 
 
