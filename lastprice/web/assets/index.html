@@ -5,13 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lastprice — card prices, every market</title>
 <meta name="description" content="Real card values per grade from sold comps, compared across Collector Crypt, Courtyard and Phygitals.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
 <style>
 /*__CSS__*/
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="dot">▲</span>last<span class="lp">price</span></div>
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="8" fill="url(#lg)"/>
+      <path d="M6 18.5 L11.5 12 L15 15 L22 7" fill="none" stroke="#04140e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="22" cy="7" r="2.1" fill="#04140e"/>
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3ce0b6"/><stop offset="1" stop-color="#3fa9ff"/></linearGradient></defs>
+    </svg>last<span class="lp">price</span></div>
   <span id="modepill" class="mode">—</span>
   <nav class="nav">
     <a href="#/cards" data-nav="cards" class="active">Cards</a>

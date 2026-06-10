@@ -31,6 +31,8 @@ const money = n => "$"+Math.round(n).toLocaleString();
 const titleCase = s => String(s).replace(/\b\w/g,c=>c.toUpperCase());
 const mk = s => titleCase(String(s).replace(/_/g," "));
 const emptyBox = (ic,msg) => `<div class="empty"><span class="big-ic">${ic}</span>${msg}</div>`;
+const gameDot = g => `<i class="gdot" style="background:${GAME_COLOR[g]||'#475569'}"></i>`;
+const gameTag = g => `<span class="gtag">${gameDot(g)}${titleCase(g)}</span>`;
 
 /* ---------- thumbnails (real image or gradient placeholder) ---------- */
 function thumb(o,size){
@@ -71,7 +73,7 @@ function buildFacet(field){
   if(state.sel[field].size===0){counts.forEach(([v])=>state.sel[field].add(v));}
   else{counts.forEach(([v])=>{if(![...state.sel[field]].includes(v))state.sel[field].add(v);});}
   box.innerHTML=counts.map(([v,c])=>{
-    const ic=field==="game"?`<span class="ic">${GAME_ICON[v]||"🎴"}</span>`:"";
+    const ic=field==="game"?`<span class="ic">${gameDot(v)}</span>`:"";
     const checked=state.sel[field].has(v)?"checked":"";
     const label=field==="game"?titleCase(v):(field==="grader"||field==="grade_label"?v:mk(v));
     return `<label class="opt">${ic}<input type="checkbox" data-f="${field}" value="${v}" ${checked}>
@@ -125,10 +127,10 @@ function renderTable(rows){
     const ar=(COL_SORT[f]===state.sort)?' <span class="ar">▼</span>':"";
     return `<th class="${r?'r':''}" data-col="${f}">${l}${ar}</th>`;}).join("")+"</tr>";
   const body=rows.map(o=>`<tr data-key="${o.key}" style="cursor:pointer">
-    <td><img class="thumb" src="${thumb(o,42)}" alt=""></td>
+    <td><img class="thumb" loading="lazy" src="${thumb(o,42)}" alt=""></td>
     <td><div class="cardcell"><span class="nm">${o.name}</span>
       <span class="meta">${[o.set,o.number].filter(Boolean).join(" · ")||"&nbsp;"}</span></div></td>
-    <td><span class="badge">${GAME_ICON[o.game]||"🎴"} ${titleCase(o.game)}</span></td>
+    <td><span class="badge">${gameTag(o.game)}</span></td>
     <td><span class="mk">${mk(o.marketplace)}</span></td>
     <td><span class="badge">${o.grade_label}</span></td>
     <td class="r" style="font-weight:650">${money(o.listing_price_usd)}</td>
@@ -148,7 +150,7 @@ function renderGrid(rows){
     <div class="gcard" data-key="${o.key}" style="cursor:pointer">
       <div class="top"><img src="${thumb(o,46)}" alt="">
         <div><div class="nm">${o.name}</div>
-          <div class="sub">${GAME_ICON[o.game]||"🎴"} ${titleCase(o.game)} · ${o.grade_label}</div></div></div>
+          <div class="sub">${gameTag(o.game)} · ${o.grade_label}</div></div></div>
       <div class="big">+${money(o.spread_usd)} <span class="pct" style="font-size:13px">(${o.spread_pct.toFixed(0)}%)</span></div>
       <div>${spark(o,196,30)}</div>
       <div class="pr"><span>ask ${money(o.listing_price_usd)}</span><span>value ${money(o.market_price_usd)}</span></div>
@@ -179,7 +181,7 @@ function renderActivity(){
       :`<span class="px">${money(e.price_usd)}</span>`;
     return `<div class="ev" data-key="${e.key||''}" style="cursor:pointer"><div class="ic">${ic}</div>
       <div class="mid"><div class="t">${label} · <a href="${e.url||'#'}" target="_blank" rel="noopener">${e.card}</a></div>
-        <div class="s">${GAME_ICON[e.game]||"🎴"} ${titleCase(e.game)} · ${mk(e.marketplace||"")} · ${(e.spread_pct||0).toFixed(0)}% edge</div></div>
+        <div class="s">${gameTag(e.game)} · ${mk(e.marketplace||"")} · ${(e.spread_pct||0).toFixed(0)}% edge</div></div>
       <div style="text-align:right">${px}<div class="when">${relTime(e._mins||3)}</div></div></div>`;}).join("")
     :emptyBox("📡","No activity yet.");}
 
@@ -232,7 +234,7 @@ function openCard(key){
   $("#drawerbody").innerHTML=`
     <div class="dh"><img src="${thumb(c,64)}" alt="">
       <div><div class="nm">${c.name}</div>
-        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)} · ${c.grade_label}${[c.set,c.number].filter(Boolean).length?' · '+[c.set,c.number].filter(Boolean).join(' · '):''}</div>
+        <div class="sub">${gameTag(c.game)} · ${c.grade_label}${[c.set,c.number].filter(Boolean).length?' · '+[c.set,c.number].filter(Boolean).join(' · '):''}</div>
         <div class="sub">market value ${mv?money(mv):'—'}</div></div></div>
     ${reco?`<div class="reco">${reco}</div>`:''}
     <div class="sec"><h5>🛒 Buy directly (${c.listings.length})</h5>${buy}</div>
@@ -254,18 +256,19 @@ function renderCards(){
       const v=e!=null?e:g.lowest_ask_usd;
       return `<span class="chip">${g.grade_label} <b>${v!=null?money(v):'—'}</b></span>`;}).join("");
     const setline=[c.set,c.number].filter(Boolean).join(" · ");
+    const hasImg=!!c.image;
     return `<a class="ccard" href="#/card/${encodeURIComponent(c.base_key)}">
       <div class="art" style="${artBg(c.game)}">
-        <span class="gi">${GAME_ICON[c.game]||'🎴'}</span>
+        <span class="gi">${gameDot(c.game)}</span>
         ${c.total_listings?`<span class="listings">${c.total_listings} for sale</span>`:''}
-        <img src="${thumb(c,64)}" alt=""></div>
+        <img class="${hasImg?'':'ph'}" loading="lazy" src="${hasImg?c.image:thumb(c,160)}" alt=""></div>
       <div class="body">
         <div class="nm">${c.name}</div>
         ${setline?`<div class="setline">${setline}</div>`:''}
         <div class="price"><span class="v">${c.best_grade_estimate_usd!=null?money(c.best_grade_estimate_usd):'—'}</span>
           <span class="l">top grade</span></div>
         <div class="chips">${chips}</div>
-        <div class="metaline">${titleCase(c.game)} · ${c.total_sales} recent sales</div>
+        <div class="metaline">${gameTag(c.game)} · ${c.total_sales} recent sales</div>
       </div></a>`;}).join("")
     :emptyBox("🃏",`No cards match “${state.search}”.`);}
 
@@ -349,7 +352,7 @@ function renderCardDetail(baseKey){
     <div class="dhead">
       <img src="${thumb(c,84)}" alt="">
       <div><h2>${c.name}</h2>
-        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)}${setline?' · '+setline:''}</div>
+        <div class="sub">${gameTag(c.game)}${setline?' · '+setline:''}</div>
         <div class="sub">${c.total_listings} live listings · ${c.total_sales} recent sales</div></div>
       <div class="est">
         <div class="l">${top?top.grade_label:''} est. value${topEst?`<span class="conf ${topEst.confidence}">${topEst.confidence}</span>`:''}</div>

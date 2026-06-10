@@ -35,6 +35,7 @@ class SampleMarketAdapter(MarketAdapter):
                     marketplace=item.get("marketplace", self.name),
                     url=item.get("url", ""),
                     listing_id=str(item.get("id", "")),
+                    extra={"image": item.get("image", "")},
                 )
             )
         return out[:limit]
