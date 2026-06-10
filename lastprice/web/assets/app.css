@@ -4,7 +4,7 @@
 :root{
   --bg:#07090d; --bg2:#0a0d13; --surface:#0f131a; --surface2:#141a23;
   --line:#1c2430; --line2:#27313f;
-  --txt:#eef2f7; --txt2:#b9c3d2; --dim:#8791a3; --faint:#5b6678;
+  --txt:#eef2f7; --txt2:#b9c3d2; --dim:#9099ab; --faint:#717b8e;
   --accent:#3ce0b6; --accent-2:#3fa9ff;
   --green:#2fe6a8; --red:#ff6b7a; --amber:#ffc762;
   --grad:linear-gradient(135deg,#3ce0b6,#3fa9ff);
@@ -20,6 +20,8 @@ body{background:radial-gradient(1200px 600px at 80% -10%,#10202b 0%,transparent 
   -webkit-font-smoothing:antialiased}
 a{color:var(--accent);text-decoration:none}
 a:hover{filter:brightness(1.1)}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 button{font:inherit}
 .num{font-variant-numeric:tabular-nums}
 ::selection{background:#1c5e51;color:#fff}
@@ -285,15 +287,61 @@ table.tbl td .sub{font-size:11px;color:var(--faint)}
 footer{max-width:1280px;margin:0 auto;padding:18px 22px 36px;color:var(--faint);font-size:11.5px;line-height:1.6}
 
 /* ============ responsive ============ */
-@media(max-width:1020px){.stats{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:880px){
-  .layout{grid-template-columns:1fr}
-  .sidebar{display:none}
-  .topbar{padding:0 14px;gap:8px}
-  .topbar .glob{flex:1}
-  .nav a{padding:8px 10px;font-size:12.5px}
+@media(max-width:1080px){.stats{grid-template-columns:repeat(3,1fr)}}
+
+/* ---------- tablet / phone ---------- */
+@media(max-width:760px){
+  body{overflow-x:hidden}
+  /* topbar wraps into rows: [brand … refresh] / [nav] / [search] */
+  .topbar{height:auto;min-height:54px;padding:9px 13px;gap:9px;flex-wrap:wrap;row-gap:9px}
+  .topbar .spacer{display:none}
+  .brand{font-size:16px}
+  .mode,.toggle{display:none}              /* low-value chrome on mobile */
+  #refresh{order:2;margin-left:auto}
+  .nav{order:3;flex:1 1 100%;margin-left:0;gap:5px}
+  .nav a{flex:1;text-align:center;white-space:nowrap;padding:10px 6px}  /* ≥44px touch row */
+  .topbar .glob{order:4;flex:1 1 100%}
+
+  .stats{grid-template-columns:repeat(2,1fr);gap:9px;padding:14px 14px 2px}
+  .stat .v{font-size:18px}
+
+  /* filters move above the results, fully usable (not hidden) */
+  .layout{grid-template-columns:1fr;padding:12px 14px 56px;gap:12px}
+  .sidebar{position:static;max-height:none}
+
+  .page{padding:0 14px 60px}
+  .pagebar{padding:18px 0 12px}
+  .pagebar h2{font-size:21px}
+
+  .cardsgrid{grid-template-columns:1fr 1fr;gap:11px}
+  .ccard .art{aspect-ratio:5/3}
+  .ccard .body{padding:11px 12px 13px}
+  .ccard .price .v{font-size:19px}
+
   .grid2{grid-template-columns:1fr}
-  .pf-head{grid-template-columns:repeat(2,1fr)}
+  .pf-head{grid-template-columns:repeat(2,1fr);gap:9px}
+  .pf-stat .v{font-size:18px}
+
+  .dhead{padding:16px;gap:14px}
+  .dhead img{width:64px;height:64px}
+  .dhead h2{font-size:21px}
   .dhead .est{margin-left:0;text-align:left;width:100%}
+  .dhead .est .v{font-size:26px}
   .addbox{justify-content:flex-start}
+  .addrow input[list]{min-width:0;flex:1 1 100%}
+
+  /* keep wide tables inside their own card, never overflow the page */
+  .card-sec{padding:14px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pfwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.tbl{min-width:460px}
+
+  .toolbar{flex-wrap:wrap;gap:9px}
+  .viewtoggle{margin-left:0}
+  .drawer{width:100%;max-width:100%}
+}
+
+/* ---------- small phone ---------- */
+@media(max-width:380px){
+  .cardsgrid{grid-template-columns:1fr}
+  .stat .v,.pf-stat .v{font-size:17px}
 }
