@@ -24,6 +24,7 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
     adapters = [
         SampleMarketAdapter(os.path.join(_EXAMPLES, "sample_cc_listings.json"), "collector_crypt"),
         SampleMarketAdapter(os.path.join(_EXAMPLES, "sample_phygitals_listings.json"), "phygitals"),
+        SampleMarketAdapter(os.path.join(_EXAMPLES, "sample_courtyard_listings.json"), "courtyard"),
     ]
     price_source = SamplePriceSource(os.path.join(_EXAMPLES, "sample_prices.json"))
     engine = ArbitrageEngine(adapters, price_source, min_spread_pct, min_spread_usd)
@@ -37,19 +38,23 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
 
 
 def build_live_engine(args) -> ArbitrageEngine:
-    """Live engine: Collector Crypt + Phygitals (Magic Eden) + PokemonPriceTracker."""
+    """Live engine: Collector Crypt + Phygitals + Courtyard + PokemonPriceTracker."""
     from .pricing.pokemonpricetracker import PokemonPriceTrackerSource
+    from .pricing.ppt_sales import PokemonPriceTrackerSalesSource
     from .sources.collector_crypt import CollectorCryptAdapter
+    from .sources.courtyard import CourtyardAdapter
     from .sources.phygitals import PhygitalsAdapter
 
     adapters = [
         CollectorCryptAdapter(collection_symbol=args.collection),
         PhygitalsAdapter(),
+        CourtyardAdapter(),
     ]
     price_source = PokemonPriceTrackerSource()
     engine = ArbitrageEngine(adapters, price_source, args.min_spread_pct, args.min_spread_usd)
     engine.mode = "live"
     engine.gacha_source = None  # wire a live gacha source when available
+    engine.sales_source = PokemonPriceTrackerSalesSource()
     return engine
 
 
