@@ -33,6 +33,19 @@ class CardKey:
             for p in (self.game, self.name, self.set_name, self.number, self.grader, self.grade)
         )
 
+    def base_canonical(self) -> str:
+        """Identity without grader/grade — groups all grades of one card.
+
+        The card detail page is keyed by this; each grade row inside it is
+        keyed by the full :meth:`canonical`.
+        """
+        return "|".join(
+            _norm_token(p) for p in (self.game, self.name, self.set_name, self.number)
+        )
+
+    def grade_label(self) -> str:
+        return f"{self.grader} {self.grade}".strip() if (self.grader or self.grade) else "Raw"
+
     def __str__(self) -> str:
         grade = (
             f" {self.grader} {self.grade}".rstrip()
@@ -45,6 +58,29 @@ class CardKey:
             else ""
         )
         return f"{self.name}{loc}{grade}".strip()
+
+
+def grade_sort_key(grader: str, grade: str):
+    """Sort key for grade-ladder rows: numeric grade desc, then grader; Raw last."""
+    if not (grader or grade):
+        return (1, 0.0, "")  # Raw sorts after every graded row
+    try:
+        num = float(grade)
+    except (TypeError, ValueError):
+        num = 0.0
+    return (0, -num, grader)
+
+
+@dataclass
+class SoldComp:
+    """A historical sold transaction (comp) for a specific grade of a card."""
+
+    card_key: CardKey
+    price_usd: float
+    sold_at: str  # ISO-8601 UTC
+    source: str   # "ebay", "collector_crypt", "sample_sales", ...
+    url: str = ""
+    extra: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -91,10 +127,11 @@ class Opportunity:
 
     def to_dict(self) -> Dict[str, Any]:
         k = self.listing.card_key
-        grade_label = f"{k.grader} {k.grade}".strip() if (k.grader or k.grade) else "Raw"
+        grade_label = k.grade_label()
         return {
             "card": str(k),
             "key": k.canonical(),
+            "base_key": k.base_canonical(),
             "name": k.name,
             "game": k.game or "other",
             "set": k.set_name,

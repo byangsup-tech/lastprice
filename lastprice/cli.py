@@ -29,8 +29,10 @@ def build_demo_engine(min_spread_pct: float = 10.0, min_spread_usd: float = 5.0)
     engine = ArbitrageEngine(adapters, price_source, min_spread_pct, min_spread_usd)
     engine.mode = "demo"
     from .gacha import SampleGachaSource
+    from .pricing.sample_sales import SampleSalesSource
 
     engine.gacha_source = SampleGachaSource(os.path.join(_EXAMPLES, "sample_gacha.json"))
+    engine.sales_source = SampleSalesSource(os.path.join(_EXAMPLES, "sample_sales.json"))
     return engine
 
 

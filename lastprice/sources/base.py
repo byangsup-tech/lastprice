@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, Iterable, List, Optional
 
-from ..models import CardKey, Listing, PriceQuote
+from ..models import CardKey, Listing, PriceQuote, SoldComp
 
 
 class MarketAdapter(ABC):
@@ -33,4 +33,15 @@ class PriceSource(ABC):
     @abstractmethod
     def get_prices(self, card_keys: Iterable[CardKey]) -> Dict[str, PriceQuote]:
         """Return ``{CardKey.canonical(): PriceQuote}`` for keys it can price."""
+        ...
+
+
+class SalesSource(ABC):
+    """A source of historical sold transactions (comps)."""
+
+    name: str = "sales"
+
+    @abstractmethod
+    def get_sales(self, card_keys: Iterable[CardKey]) -> Dict[str, List[SoldComp]]:
+        """Return ``{CardKey.canonical(): [SoldComp, ...]}`` — per-grade keys."""
         ...
