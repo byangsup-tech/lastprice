@@ -98,7 +98,7 @@ export default function Home() {
       <BottomSheet
         onSnapChange={setSheetSnap}
         header={
-          <>
+          <div className="mx-auto w-full max-w-2xl">
             <div className="flex items-center justify-between px-4 pt-1 pb-2">
               <p className="text-sm font-bold">
                 반경 {radiusLabel} 내{" "}
@@ -107,17 +107,19 @@ export default function Home() {
               <SortSelect value={sort} onChange={setSort} />
             </div>
             <FilterChips filters={filters} onChange={setFilters} />
-          </>
+          </div>
         }
       >
-        <DaycareList
-          items={items}
-          loading={loading}
-          error={error}
-          compareIds={compare.ids}
-          onToggleCompare={handleToggleCompare}
-          onSelect={setDetailId}
-        />
+        <div className="mx-auto w-full max-w-2xl">
+          <DaycareList
+            items={items}
+            loading={loading}
+            error={error}
+            compareIds={compare.ids}
+            onToggleCompare={handleToggleCompare}
+            onSelect={setDetailId}
+          />
+        </div>
       </BottomSheet>
 
       <CompareBar ids={compare.ids} center={center} onClear={compare.clear} />
@@ -133,7 +135,7 @@ export default function Home() {
       )}
 
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-[1300] flex justify-center px-6">
+        <div className="pointer-events-none fixed inset-x-0 top-[22dvh] z-[1300] flex justify-center px-6">
           <p className="rounded-full bg-gray-900/90 px-4 py-2 text-xs font-medium text-white shadow-lg">
             {toast}
           </p>

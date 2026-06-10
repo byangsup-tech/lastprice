@@ -23,9 +23,12 @@ export default function DaycareCard({
 }: DaycareCardProps) {
   const avail = availability(d);
   const ratio = childPerTeacher(d);
+  const isActive = d.status === "정상";
 
   return (
-    <div className="flex items-stretch gap-2 border-b border-gray-100 px-4 py-3">
+    <div
+      className={`flex items-stretch gap-2 border-b border-gray-100 px-4 py-3 ${isActive ? "" : "opacity-55"}`}
+    >
       <button
         type="button"
         onClick={() => onClick(d.id)}
@@ -50,7 +53,9 @@ export default function DaycareCard({
 
         <p className="mt-1 text-xs text-gray-600">
           정원 {d.capacity} · 현원 {d.current} ·{" "}
-          {avail > 0 ? (
+          {!isActive ? (
+            <span className="font-bold text-gray-400">운영 휴지 중</span>
+          ) : avail > 0 ? (
             <span className="font-bold text-green-600">여유 {avail}명</span>
           ) : (
             <span className="font-bold text-red-500">정원 마감</span>

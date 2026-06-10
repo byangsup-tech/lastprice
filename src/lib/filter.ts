@@ -54,6 +54,10 @@ export function queryDaycares(
   }
 
   result.sort((a, b) => {
+    // 휴지 등 비정상 운영은 항상 후순위
+    const statusOrder =
+      (a.status === "정상" ? 0 : 1) - (b.status === "정상" ? 0 : 1);
+    if (statusOrder !== 0) return statusOrder;
     switch (q.sort) {
       case "avail":
         return availability(b) - availability(a) || a.distance - b.distance;

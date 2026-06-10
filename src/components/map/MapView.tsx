@@ -1,8 +1,10 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
 import L from "leaflet";
-import { useEffect, useMemo } from "react";
+import "leaflet.markercluster";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Circle,
   MapContainer,
@@ -69,6 +71,62 @@ function daycareIcon(
   });
 }
 
+function clusterIcon(cluster: { getChildCount(): number }): L.DivIcon {
+  const count = cluster.getChildCount();
+  const size = count >= 50 ? 40 : count >= 10 ? 34 : 28;
+  return L.divIcon({
+    className: "leaflet-div-icon-clean",
+    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#2563eb;border:3px solid rgba(255,255,255,.85);box-shadow:0 1px 6px rgba(0,0,0,.35);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${count}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+/** 밀집 지역(실데이터 기준 수백 곳)에서 마커 겹침을 막기 위한 클러스터 레이어 */
+function ClusteredDaycareMarkers({
+  daycares,
+  compareIds,
+  selectedId,
+  onMarkerClick,
+}: Pick<MapViewProps, "daycares" | "compareIds" | "selectedId" | "onMarkerClick">) {
+  const map = useMap();
+  const groupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const onClickRef = useRef(onMarkerClick);
+  useEffect(() => {
+    onClickRef.current = onMarkerClick;
+  }, [onMarkerClick]);
+
+  useEffect(() => {
+    const group = L.markerClusterGroup({
+      maxClusterRadius: 44,
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      iconCreateFunction: clusterIcon,
+    });
+    map.addLayer(group);
+    groupRef.current = group;
+    return () => {
+      map.removeLayer(group);
+      groupRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    group.clearLayers();
+    for (const d of daycares) {
+      const marker = L.marker([d.lat, d.lng], {
+        icon: daycareIcon(d, compareIds.includes(d.id), selectedId === d.id),
+      });
+      marker.on("click", () => onClickRef.current(d.id));
+      group.addLayer(marker);
+    }
+  }, [daycares, compareIds, selectedId]);
+
+  return null;
+}
+
 export default function MapView({
   center,
   radius,
@@ -89,6 +147,7 @@ export default function MapView({
       zoom={15}
       className="h-full w-full"
       zoomControl={false}
+      doubleClickZoom={false}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -117,18 +176,12 @@ export default function MapView({
         }}
       />
 
-      {daycares.map((d) => (
-        <Marker
-          key={d.id}
-          position={[d.lat, d.lng]}
-          icon={daycareIcon(d, compareIds.includes(d.id), selectedId === d.id)}
-          eventHandlers={{
-            click() {
-              onMarkerClick(d.id);
-            },
-          }}
-        />
-      ))}
+      <ClusteredDaycareMarkers
+        daycares={daycares}
+        compareIds={compareIds}
+        selectedId={selectedId}
+        onMarkerClick={onMarkerClick}
+      />
     </MapContainer>
   );
 }

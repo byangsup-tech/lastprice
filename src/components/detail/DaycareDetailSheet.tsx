@@ -54,7 +54,7 @@ export default function DaycareDetailSheet({
         onClick={onClose}
         className="flex-1"
       />
-      <div className="flex max-h-[88dvh] flex-col rounded-t-2xl bg-white">
+      <div className="mx-auto flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white">
         <div className="flex items-start gap-2 px-4 pt-4 pb-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
