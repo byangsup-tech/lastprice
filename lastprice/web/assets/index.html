@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lastprice — card terminal</title>
+<title>lastprice — card prices, every market</title>
+<meta name="description" content="Real card values per grade from sold comps, compared across Collector Crypt, Courtyard and Phygitals.">
 <style>
 /*__CSS__*/
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">last<span>price</span></div>
+  <div class="brand"><span class="dot">▲</span>last<span class="lp">price</span></div>
   <span id="modepill" class="mode">—</span>
   <nav class="nav">
-    <a href="#/ops" data-nav="ops" class="active">Opportunities</a>
-    <a href="#/cards" data-nav="cards">Cards</a>
+    <a href="#/cards" data-nav="cards" class="active">Cards</a>
+    <a href="#/ops" data-nav="ops">Opportunities</a>
     <a href="#/portfolio" data-nav="portfolio">Portfolio</a>
   </nav>
   <div class="spacer"></div>
@@ -22,9 +23,10 @@
   <label class="toggle"><input id="auto" type="checkbox" checked> auto</label>
   <button id="refresh" class="btn">↻</button>
 </div>
+<div class="demobar" id="demobar" hidden>📊 You're viewing <b>demo data</b> — live market feeds connect via API keys. Prices shown are illustrative.</div>
 
 <!-- ===================== OPPORTUNITIES ===================== -->
-<div id="page-ops">
+<div id="page-ops" hidden>
 <div class="stats" id="stats"></div>
 <div class="layout">
   <aside class="sidebar">
@@ -66,18 +68,16 @@
   <div class="content">
     <div class="toolbar">
       <div class="tabs">
-        <button data-tab="ops" class="active">Opportunities</button>
+        <button data-tab="ops" class="active">Underpriced</button>
         <button data-tab="activity">Activity <span class="pill" id="actcount">0</span></button>
       </div>
+      <span class="count" id="count"></span>
       <div class="viewtoggle" id="viewtoggle">
         <button data-view="table" class="active">Table</button>
         <button data-view="grid">Grid</button>
       </div>
     </div>
     <div id="pane-ops">
-      <div class="toolbar" style="border-top:0;padding-top:0;border-bottom:1px solid var(--line)">
-        <span class="count" id="count"></span>
-      </div>
       <div class="tablewrap" id="tablewrap"></div>
       <div class="grid" id="gridwrap" hidden></div>
     </div>
@@ -90,20 +90,20 @@
 </div>
 
 <!-- ===================== CARDS BROWSE ===================== -->
-<div id="page-cards" hidden>
+<div id="page-cards" class="page">
   <div class="pagebar"><h2>Cards</h2><span class="count" id="cardscount"></span>
-    <span class="sub">value per grade from sold comps · click a card for detail</span></div>
+    <span class="sub">value per grade from sold sales · compared across every market</span></div>
   <div class="cardsgrid" id="cardsgrid"></div>
 </div>
 
 <!-- ===================== CARD DETAIL ===================== -->
-<div id="page-card" hidden>
+<div id="page-card" class="page" hidden>
   <div id="carddetail"></div>
 </div>
 
 <!-- ===================== PORTFOLIO ===================== -->
-<div id="page-portfolio" hidden>
-  <div class="pagebar"><h2>Portfolio</h2><span class="sub">estimated value of cards you own</span></div>
+<div id="page-portfolio" class="page" hidden>
+  <div class="pagebar"><h2>Portfolio</h2><span class="sub">live estimated value of the cards you own</span></div>
   <div id="portfolio"></div>
 </div>
 
@@ -111,9 +111,8 @@
 <div class="drawer" id="drawer"><button class="dclose" id="dclose">×</button><div id="drawerbody"></div></div>
 
 <footer>
-  Prices are estimates; verify before buying. Not financial advice. Value = weighted median of
-  sold comps (180d); opportunity sparklines are illustrative. Sample data in demo mode.
-  <span id="src"></span>
+  Prices are estimates — verify before buying. Not financial advice. Value = weighted median of sold
+  sales (180d). Opportunity sparklines are illustrative. <span id="src"></span>
 </footer>
 
 <script>

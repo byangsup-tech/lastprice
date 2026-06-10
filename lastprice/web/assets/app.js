@@ -8,7 +8,11 @@ const GAME_ICON = {pokemon:"⚡",riftbound:"🗡️","one piece":"🏴‍☠️"
   magic:"🔮",yugioh:"🃏",lorcana:"✨",other:"🎴"};
 const GAME_COLOR = {pokemon:"#3b4cca",riftbound:"#7c3aed","one piece":"#c0392b",
   sports:"#e67e22",magic:"#0e7490",yugioh:"#a16207",lorcana:"#9333ea",other:"#475569"};
-const GRADE_COLORS = ["#5eead4","#f59e0b","#60a5fa","#f472b6","#a3e635","#fb7185","#c084fc"];
+const GAME_GRAD = {
+  pokemon:["#1b2a6b","#0e1a3d"], riftbound:["#3b1d77","#1d0f3d"], "one piece":["#6b1f1a","#33100d"],
+  sports:["#7a4310","#3d2208"], magic:["#0b4f5e","#062a33"], yugioh:["#5e470c","#2f2406"],
+  lorcana:["#4d1a77","#260d3d"], other:["#2a3442","#161c26"]};
+const GRADE_COLORS = ["#3ce0b6","#ffc762","#5fb0ff","#ff7ab0","#a8e05f","#ff8a76","#c08aff"];
 
 let DATA = RAW.slice();
 let ACTIVITY = [];
@@ -26,18 +30,23 @@ const $ = s => document.querySelector(s);
 const money = n => "$"+Math.round(n).toLocaleString();
 const titleCase = s => String(s).replace(/\b\w/g,c=>c.toUpperCase());
 const mk = s => titleCase(String(s).replace(/_/g," "));
+const emptyBox = (ic,msg) => `<div class="empty"><span class="big-ic">${ic}</span>${msg}</div>`;
 
-/* ---------- thumbnails (real image or SVG placeholder) ---------- */
+/* ---------- thumbnails (real image or gradient placeholder) ---------- */
 function thumb(o,size){
   if(o.image) return o.image;
-  const bg=GAME_COLOR[o.game]||"#475569";
+  const [c1,c2]=GAME_GRAD[o.game]||GAME_GRAD.other;
   const ch=((o.name||"?").trim()[0]||"?").toUpperCase();
   const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>`+
-    `<rect width='100%' height='100%' rx='8' fill='${bg}'/>`+
-    `<text x='50%' y='53%' font-size='${Math.round(size*0.46)}' fill='#fff' text-anchor='middle' `+
-    `dominant-baseline='middle' font-family='sans-serif' font-weight='700'>${ch}</text></svg>`;
+    `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>`+
+    `<stop offset='0' stop-color='${c1}'/><stop offset='1' stop-color='${c2}'/></linearGradient></defs>`+
+    `<rect width='100%' height='100%' rx='${Math.round(size*0.2)}' fill='url(#g)'/>`+
+    `<text x='50%' y='54%' font-size='${Math.round(size*0.44)}' fill='rgba(255,255,255,.92)' text-anchor='middle' `+
+    `dominant-baseline='middle' font-family='sans-serif' font-weight='800'>${ch}</text></svg>`;
   return "data:image/svg+xml;utf8,"+encodeURIComponent(svg);
 }
+function artBg(game){const [c1,c2]=GAME_GRAD[game]||GAME_GRAD.other;
+  return `background:radial-gradient(120% 140% at 20% 0%,${c1} 0%,${c2} 70%)`;}
 
 /* ---------- opportunity sparkline (synthesized from 24h trend) ---------- */
 function seedRand(seed){let s=2166136261>>>0;for(const c of seed)s=Math.imul(s^c.charCodeAt(0),16777619)>>>0;
@@ -98,16 +107,16 @@ function renderStats(rows){
   const totEdge=rows.reduce((s,o)=>s+o.spread_usd,0);
   const avgPct=rows.length?rows.reduce((s,o)=>s+o.spread_pct,0)/rows.length:0;
   const best=rows.reduce((m,o)=>Math.max(m,o.spread_pct),0);
-  const cards=[["Opportunities",rows.length,""],["Total edge",money(totEdge),"green"],
-    ["Avg edge",avgPct.toFixed(0)+"%","acc"],["Best edge",best.toFixed(0)+"%","green"],
+  const cards=[["Underpriced finds",rows.length,""],["Total edge",money(totEdge),"green"],
+    ["Avg discount",avgPct.toFixed(0)+"%","acc"],["Best discount",best.toFixed(0)+"%","green"],
     ["Markets",new Set(rows.map(o=>o.marketplace)).size,""],["Games",new Set(rows.map(o=>o.game)).size,""]];
   $("#stats").innerHTML=cards.map(([k,v,c])=>
     `<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join("");}
 
 const COLS=[["","",false],["card","Card",false],["game","Game",false],["marketplace","Market",false],
-  ["grade_label","Grade",false],["listing_price_usd","List",true],["market_price_usd","Value",true],
+  ["grade_label","Grade",false],["listing_price_usd","Ask",true],["market_price_usd","Value",true],
   ["spread_usd","Edge",true],["spread_pct","%",true],["trend_pct_24h","24h",true],
-  ["spark","Chart",false],["act","",true]];
+  ["spark","Trend",false],["act","",true]];
 const COL_SORT={listing_price_usd:"price_desc",market_price_usd:"price_desc",
   spread_usd:"edge_usd",spread_pct:"spread_pct",trend_pct_24h:"trend",card:"name"};
 
@@ -116,13 +125,13 @@ function renderTable(rows){
     const ar=(COL_SORT[f]===state.sort)?' <span class="ar">▼</span>':"";
     return `<th class="${r?'r':''}" data-col="${f}">${l}${ar}</th>`;}).join("")+"</tr>";
   const body=rows.map(o=>`<tr data-key="${o.key}" style="cursor:pointer">
-    <td><img class="thumb" src="${thumb(o,40)}" alt=""></td>
+    <td><img class="thumb" src="${thumb(o,42)}" alt=""></td>
     <td><div class="cardcell"><span class="nm">${o.name}</span>
       <span class="meta">${[o.set,o.number].filter(Boolean).join(" · ")||"&nbsp;"}</span></div></td>
     <td><span class="badge">${GAME_ICON[o.game]||"🎴"} ${titleCase(o.game)}</span></td>
     <td><span class="mk">${mk(o.marketplace)}</span></td>
     <td><span class="badge">${o.grade_label}</span></td>
-    <td class="r">${money(o.listing_price_usd)}</td>
+    <td class="r" style="font-weight:650">${money(o.listing_price_usd)}</td>
     <td class="r" style="color:var(--dim)">${money(o.market_price_usd)}</td>
     <td class="r edge">+${money(o.spread_usd)}</td>
     <td class="r pct">${o.spread_pct.toFixed(0)}%</td>
@@ -132,20 +141,20 @@ function renderTable(rows){
   </tr>`).join("");
   $("#tablewrap").innerHTML=rows.length
     ?`<table><thead>${head}</thead><tbody>${body}</tbody></table>`
-    :`<div class="empty">No opportunities match these filters.</div>`;}
+    :emptyBox("🔎","No underpriced listings match these filters.");}
 
 function renderGrid(rows){
   $("#gridwrap").innerHTML=rows.length?rows.map(o=>`
     <div class="gcard" data-key="${o.key}" style="cursor:pointer">
-      <div class="top"><img src="${thumb(o,48)}" alt="">
+      <div class="top"><img src="${thumb(o,46)}" alt="">
         <div><div class="nm">${o.name}</div>
           <div class="sub">${GAME_ICON[o.game]||"🎴"} ${titleCase(o.game)} · ${o.grade_label}</div></div></div>
       <div class="big">+${money(o.spread_usd)} <span class="pct" style="font-size:13px">(${o.spread_pct.toFixed(0)}%)</span></div>
       <div>${spark(o,196,30)}</div>
-      <div class="pr"><span>list ${money(o.listing_price_usd)}</span><span>val ${money(o.market_price_usd)}</span></div>
+      <div class="pr"><span>ask ${money(o.listing_price_usd)}</span><span>value ${money(o.market_price_usd)}</span></div>
       <div class="pr"><span>${trendCell(o)} · ${mk(o.marketplace)}</span>
         <a class="buy" href="${o.url||'#'}" target="_blank" rel="noopener">Buy →</a></div>
-    </div>`).join(""):`<div class="empty">No opportunities match these filters.</div>`;}
+    </div>`).join(""):emptyBox("🔎","No underpriced listings match these filters.");}
 
 /* ---------- activity ---------- */
 const EV_META={new:["🆕","New listing"],price_down:["🔻","Price drop"],
@@ -172,7 +181,7 @@ function renderActivity(){
       <div class="mid"><div class="t">${label} · <a href="${e.url||'#'}" target="_blank" rel="noopener">${e.card}</a></div>
         <div class="s">${GAME_ICON[e.game]||"🎴"} ${titleCase(e.game)} · ${mk(e.marketplace||"")} · ${(e.spread_pct||0).toFixed(0)}% edge</div></div>
       <div style="text-align:right">${px}<div class="when">${relTime(e._mins||3)}</div></div></div>`;}).join("")
-    :`<div class="empty">No activity yet.</div>`;}
+    :emptyBox("📡","No activity yet.");}
 
 function renderOps(){
   const rows=filtered();renderStats(rows);
@@ -192,7 +201,7 @@ function initPriceRange(){
 
 /* ---------- opportunity drawer: where to BUY and PULL ---------- */
 function vsMarket(price,mkt){if(!mkt)return"";const d=(mkt-price)/mkt*100;
-  const cls=d>=0?"pos":"neg";return `<span class="${cls}">${d>=0?"−":"+"}${Math.abs(d).toFixed(0)}% vs market</span>`;}
+  const cls=d>=0?"pos":"neg";return `<span class="${cls}">${d>=0?"−":"+"}${Math.abs(d).toFixed(0)}% vs value</span>`;}
 function openCard(key){
   const c=CARDMAP[key];if(!c)return;
   const mv=c.market_price, cd=c.cheapest_direct_usd, bg=c.best_gacha_cost_usd;
@@ -241,52 +250,80 @@ function renderCards(){
   $("#cardscount").textContent=`${list.length} cards`;
   $("#cardsgrid").innerHTML=list.length?list.map(c=>{
     const chips=c.grades.slice(0,4).map(g=>{
-      const v=g.estimate?g.estimate.estimate_usd:g.lowest_ask_usd;
-      return `<span class="chip">${g.grade_label} ${v!=null?money(v):'—'}</span>`;}).join("");
+      const e=g.estimate?g.estimate.estimate_usd:null;
+      const v=e!=null?e:g.lowest_ask_usd;
+      return `<span class="chip">${g.grade_label} <b>${v!=null?money(v):'—'}</b></span>`;}).join("");
+    const setline=[c.set,c.number].filter(Boolean).join(" · ");
     return `<a class="ccard" href="#/card/${encodeURIComponent(c.base_key)}">
-      <div class="top"><img src="${thumb(c,52)}" alt=""><div><div class="nm">${c.name}</div>
-        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)}${c.set?' · '+c.set:''}${c.number?' · '+c.number:''}</div></div></div>
-      <div class="big">${c.best_grade_estimate_usd!=null?money(c.best_grade_estimate_usd):'—'} <span class="sub">top grade est.</span></div>
-      <div class="chips">${chips}</div>
-      <div class="sub">${c.total_listings} listings · ${c.total_sales} sales</div></a>`;}).join("")
-    :`<div class="empty">No cards match "${state.search}".</div>`;}
+      <div class="art" style="${artBg(c.game)}">
+        <span class="gi">${GAME_ICON[c.game]||'🎴'}</span>
+        ${c.total_listings?`<span class="listings">${c.total_listings} for sale</span>`:''}
+        <img src="${thumb(c,64)}" alt=""></div>
+      <div class="body">
+        <div class="nm">${c.name}</div>
+        ${setline?`<div class="setline">${setline}</div>`:''}
+        <div class="price"><span class="v">${c.best_grade_estimate_usd!=null?money(c.best_grade_estimate_usd):'—'}</span>
+          <span class="l">top grade</span></div>
+        <div class="chips">${chips}</div>
+        <div class="metaline">${titleCase(c.game)} · ${c.total_sales} recent sales</div>
+      </div></a>`;}).join("")
+    :emptyBox("🃏",`No cards match “${state.search}”.`);}
 
 /* ===================== CARD DETAIL ===================== */
 function historyChart(c){
-  const W=760,H=220,padL=44,padR=10,padT=12,padB=22,now=Date.now();
+  const W=860,H=250,padL=48,padR=14,padT=14,padB=24,now=Date.now();
   const ser=[];
   c.grades.forEach((g,gi)=>{
     const pts=g.sales.map(s=>({d:(now-new Date(s.sold_at).getTime())/86400000,p:s.price_usd}))
       .filter(x=>x.d<=180&&!isNaN(x.d)).sort((a,b)=>a.d-b.d);
     if(pts.length)ser.push({label:g.grade_label,color:GRADE_COLORS[gi%GRADE_COLORS.length],pts});
   });
-  if(!ser.length)return `<div class="sub">No sold history to chart yet.</div>`;
+  if(!ser.length)return `<div class="sub" style="color:var(--dim)">No sold history to chart yet.</div>`;
   const shown=ser.filter(s=>!hiddenGrades.has(s.label));
   const allP=(shown.length?shown:ser).flatMap(s=>s.pts.map(p=>p.p));
-  const minP=Math.min(...allP),maxP=Math.max(...allP),rng=(maxP-minP)||1,maxD=180;
+  const minP=Math.min(...allP)*0.95,maxP=Math.max(...allP)*1.03,rng=(maxP-minP)||1,maxD=180;
   const X=d=>padL+(1-d/maxD)*(W-padL-padR);
   const Y=p=>padT+(1-(p-minP)/rng)*(H-padT-padB);
-  const grid=[0,.5,1].map(t=>{const y=padT+t*(H-padT-padB),val=maxP-t*rng;
-    return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#1b2130"/>`+
-      `<text x="4" y="${y+3}" fill="#5d6678" font-size="10">${money(val)}</text>`;}).join("");
+  const grid=[0,.33,.66,1].map(t=>{const y=padT+t*(H-padT-padB),val=maxP-t*rng;
+    return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#161d28"/>`+
+      `<text x="6" y="${y+3.5}" fill="#56617a" font-size="10.5">${money(val)}</text>`;}).join("");
+  const xticks=[0,60,120,180].map(d=>`<text x="${X(d)}" y="${H-7}" fill="#56617a" font-size="10" text-anchor="middle">${d===0?'today':d+'d'}</text>`).join("");
+  let defs="",areas="";
+  if(shown.length){const s=shown[0];
+    const poly=s.pts.map(p=>`${X(p.d).toFixed(1)},${Y(p.p).toFixed(1)}`).join(" ");
+    const first=s.pts[0],last=s.pts[s.pts.length-1];
+    defs=`<defs><linearGradient id="af" x1="0" y1="0" x2="0" y2="1">`+
+      `<stop offset="0" stop-color="${s.color}" stop-opacity=".22"/>`+
+      `<stop offset="1" stop-color="${s.color}" stop-opacity="0"/></linearGradient></defs>`;
+    areas=`<polygon fill="url(#af)" points="${X(first.d).toFixed(1)},${H-padB} ${poly} ${X(last.d).toFixed(1)},${H-padB}"/>`;}
   const lines=shown.map(s=>{
     const poly=s.pts.map(p=>`${X(p.d).toFixed(1)},${Y(p.p).toFixed(1)}`).join(" ");
-    const dots=s.pts.map(p=>`<circle cx="${X(p.d).toFixed(1)}" cy="${Y(p.p).toFixed(1)}" r="2.2" fill="${s.color}"/>`).join("");
-    return `<polyline fill="none" stroke="${s.color}" stroke-width="1.7" points="${poly}"/>${dots}`;}).join("");
+    const dots=s.pts.map(p=>`<circle cx="${X(p.d).toFixed(1)}" cy="${Y(p.p).toFixed(1)}" r="2.4" fill="${s.color}"/>`).join("");
+    return `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" points="${poly}"/>${dots}`;}).join("");
   const legend=ser.map(s=>`<span class="leg ${hiddenGrades.has(s.label)?'off':''}" data-grade="${s.label}"><i style="background:${s.color}"></i>${s.label}</span>`).join("");
   return `<div class="legend">${legend}</div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:240px">${grid}${lines}</svg>
-    <div class="sub">x-axis: last 180 days (right = today) · click a grade to toggle</div>`;
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:270px">${defs}${grid}${areas}${lines}${xticks}</svg>`;
+}
+function rangeBar(e){
+  if(!e)return"";
+  const lo=e.low_usd,hi=e.high_usd,v=e.estimate_usd;
+  const span=(hi-lo)||1;
+  const pct=Math.min(98,Math.max(2,(v-lo)/span*100));
+  return `<div class="rangebar"><div class="fill" style="left:8%;width:84%"></div>
+      <div class="mark" style="left:${(8+pct*0.84).toFixed(1)}%"></div></div>
+    <div class="rangelab"><span>low ${money(lo)}</span><span>high ${money(hi)}</span></div>`;
 }
 function renderCardDetail(baseKey){
   const c=CARDBYBASE[baseKey];
-  if(!c){$("#carddetail").innerHTML=`<a class="back" href="#/cards">← All cards</a><div class="empty">Card not found.</div>`;return;}
+  if(!c){$("#carddetail").innerHTML=`<a class="back" href="#/cards">← All cards</a>`+emptyBox("🃏","Card not found.");return;}
+  const top=c.grades.find(g=>g.estimate)||c.grades[0];
+  const topEst=top&&top.estimate?top.estimate:null;
   const ladder=c.grades.map(g=>{
     const e=g.estimate,ask=g.lowest_ask_usd;
     const delta=(e&&ask!=null)?(ask-e.estimate_usd)/e.estimate_usd*100:null;
     return `<tr>
       <td><span class="badge">${g.grade_label}</span></td>
-      <td class="r">${e?money(e.estimate_usd):'—'}${e?`<div class="sub">${e.n_sales} sales · ${e.confidence}</div>`:''}</td>
+      <td class="r" style="font-weight:700">${e?money(e.estimate_usd):'—'}${e?`<div class="sub">${e.n_sales} sales · ${e.confidence}</div>`:''}</td>
       <td class="r">${e?money(e.last_sold_price_usd):'—'}${e?`<div class="sub">${e.last_sold_days_ago}d ago</div>`:''}</td>
       <td class="r">${ask!=null?money(ask):'—'}</td>
       <td class="r">${g.listings.length}</td>
@@ -296,38 +333,45 @@ function renderCardDetail(baseKey){
   const xmkt=allL.length?allL.map(l=>{
     const d=l.est?(l.est-l.price_usd)/l.est*100:null;
     return `<tr><td><span class="mk">${mk(l.marketplace)}</span></td><td><span class="badge">${l.grade}</span></td>
-      <td class="r">${money(l.price_usd)}</td>
-      <td class="r ${d==null?'':(d>=0?'pos':'neg')}">${d==null?'—':(d>=0?'+':'')+d.toFixed(0)+'%'}</td>
+      <td class="r" style="font-weight:650">${money(l.price_usd)}</td>
+      <td class="r ${d==null?'':(d>=0?'pos':'neg')}">${d==null?'—':(d>=0?'−':'+')+Math.abs(d).toFixed(0)+'%'}</td>
       <td class="r"><a class="buy" href="${l.url||'#'}" target="_blank" rel="noopener">Buy →</a></td></tr>`;}).join("")
-    :`<tr><td colspan="5" class="sub">No live listings across markets.</td></tr>`;
+    :`<tr><td colspan="5" class="sub" style="padding:14px 10px">No live listings across markets.</td></tr>`;
   const allS=[];c.grades.forEach(g=>g.sales.forEach(s=>allS.push({...s,grade:g.grade_label})));
   allS.sort((a,b)=>b.sold_at.localeCompare(a.sold_at));
   const sold=allS.slice(0,40).map(s=>`<tr><td class="sub">${new Date(s.sold_at).toLocaleDateString()}</td>
-    <td><span class="badge">${s.grade}</span></td><td class="r">${money(s.price_usd)}</td>
+    <td><span class="badge">${s.grade}</span></td><td class="r" style="font-weight:650">${money(s.price_usd)}</td>
     <td class="sub">${mk(s.source||"")}</td></tr>`).join("");
   const gradeOpts=c.grades.map(g=>`<option value="${g.grade_label}">${g.grade_label}</option>`).join("");
+  const setline=[c.set,c.number].filter(Boolean).join(" · ");
   $("#carddetail").innerHTML=`
     <a class="back" href="#/cards">← All cards</a>
-    <div class="dhead"><img src="${thumb(c,72)}" alt="">
+    <div class="dhead">
+      <img src="${thumb(c,84)}" alt="">
       <div><h2>${c.name}</h2>
-        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)}${c.set?' · '+c.set:''}${c.number?' · '+c.number:''}</div>
-        <div class="sub">top grade est. <b class="acc">${c.best_grade_estimate_usd!=null?money(c.best_grade_estimate_usd):'—'}</b></div></div>
-      <div class="addbox">
-        <select id="pf-grade">${gradeOpts}</select>
-        <input id="pf-qty" type="number" min="1" value="1" title="quantity">
-        <input id="pf-cost" type="number" min="0" placeholder="cost ea (opt)">
-        <button class="btn add" id="pf-add" data-base="${c.base_key}">+ Portfolio</button></div></div>
-    <div class="card-sec"><h5>Price history — sold comps per grade</h5>${historyChart(c)}</div>
+        <div class="sub">${GAME_ICON[c.game]||'🎴'} ${titleCase(c.game)}${setline?' · '+setline:''}</div>
+        <div class="sub">${c.total_listings} live listings · ${c.total_sales} recent sales</div></div>
+      <div class="est">
+        <div class="l">${top?top.grade_label:''} est. value${topEst?`<span class="conf ${topEst.confidence}">${topEst.confidence}</span>`:''}</div>
+        <div class="v">${c.best_grade_estimate_usd!=null?money(c.best_grade_estimate_usd):'—'}</div>
+        ${rangeBar(topEst)}
+        <div class="addbox">
+          <select id="pf-grade">${gradeOpts}</select>
+          <input id="pf-qty" type="number" min="1" value="1" title="quantity">
+          <input id="pf-cost" type="number" min="0" placeholder="cost ea (opt)">
+          <button class="btn add" id="pf-add" data-base="${c.base_key}">+ Portfolio</button></div>
+      </div></div>
+    <div class="card-sec"><h5>Price history · sold sales per grade · 180 days</h5>${historyChart(c)}</div>
     <div class="grid2">
       <div class="card-sec"><h5>Grade ladder</h5>
         <table class="tbl"><thead><tr><th>Grade</th><th class="r">Est. value</th><th class="r">Last sold</th><th class="r">Lowest ask</th><th class="r">#</th><th class="r">Ask vs est</th></tr></thead><tbody>${ladder}</tbody></table>
-        <div class="sub" style="padding:6px 2px">Est. value = weighted median of sales within 180d.</div></div>
-      <div class="card-sec"><h5>Live listings — all markets</h5>
+        <div class="sub" style="padding:8px 2px;color:var(--faint);font-size:11px">Est. value = weighted median of sales within 180d.</div></div>
+      <div class="card-sec"><h5>Live listings · all markets</h5>
         <table class="tbl"><thead><tr><th>Market</th><th>Grade</th><th class="r">Ask</th><th class="r">vs est</th><th></th></tr></thead><tbody>${xmkt}</tbody></table></div>
     </div>
     <div class="card-sec"><h5>Recent sales</h5>
       <table class="tbl"><thead><tr><th>Date</th><th>Grade</th><th class="r">Price</th><th>Source</th></tr></thead>
-      <tbody>${sold||'<tr><td colspan="4" class="sub">No sales recorded.</td></tr>'}</tbody></table></div>`;
+      <tbody>${sold||'<tr><td colspan="4" class="sub" style="padding:14px 10px">No sales recorded.</td></tr>'}</tbody></table></div>`;
 }
 
 /* ===================== PORTFOLIO ===================== */
@@ -382,22 +426,24 @@ function renderPortfolio(){
   const v=currentPF();
   const alloc=Object.entries(v.allocation_by_game||{}).sort((a,b)=>b[1]-a[1]);
   const bar=alloc.length?alloc.map(([g,val])=>`<div class="seg" style="flex:${val};background:${GAME_COLOR[g]||'#475569'}" title="${titleCase(g)} ${money(val)}"></div>`).join(""):"";
+  const allocLegend=alloc.length?`<div class="alloclegend">${alloc.map(([g,val])=>
+    `<span><i style="background:${GAME_COLOR[g]||'#475569'}"></i>${titleCase(g)} ${money(val)}</span>`).join("")}</div>`:"";
   const rows=(v.holdings||[]).map(h=>`<tr>
     <td><div class="cardcell"><span class="nm">${h.name}</span><span class="meta">${h.grade_label}</span></div></td>
     <td class="r">${h.qty}</td>
     <td class="r">${h.unit_value_usd!=null?money(h.unit_value_usd):'—'}</td>
-    <td class="r">${h.value_usd!=null?money(h.value_usd):'—'} <span class="tag">${h.value_basis}</span></td>
-    <td class="r">${h.cost_basis_usd!=null?money(h.cost_basis_usd*h.qty):'—'}</td>
+    <td class="r" style="font-weight:700">${h.value_usd!=null?money(h.value_usd):'—'} <span class="tag">${h.value_basis}</span></td>
+    <td class="r" style="color:var(--dim)">${h.cost_basis_usd!=null?money(h.cost_basis_usd*h.qty):'—'}</td>
     <td class="r"><button class="btn rm" data-rm="${h.id}">✕</button></td></tr>`).join("");
   const up=v.unrealized_usd;
   $("#portfolio").innerHTML=`
     <div class="pf-head">
       <div class="pf-stat"><div class="k">Total value</div><div class="v green">${money(v.total_value_usd||0)}</div></div>
       <div class="pf-stat"><div class="k">Cost basis</div><div class="v">${v.total_cost_usd!=null?money(v.total_cost_usd):'—'}</div></div>
-      <div class="pf-stat"><div class="k">Unrealized</div><div class="v ${up==null?'':(up>=0?'green':'neg')}">${up!=null?((up>=0?'+':'')+money(up)+(v.unrealized_pct!=null?` (${v.unrealized_pct}%)`:'')):'—'}</div></div>
+      <div class="pf-stat"><div class="k">Unrealized P/L</div><div class="v ${up==null?'':(up>=0?'green':'neg')}">${up!=null?((up>=0?'+':'')+money(up)+(v.unrealized_pct!=null?` (${v.unrealized_pct}%)`:'')):'—'}</div></div>
       <div class="pf-stat"><div class="k">Holdings</div><div class="v">${v.n_holdings||0}</div></div></div>
-    ${bar?`<div class="allocbar">${bar}</div>`:''}
-    <div class="card-sec"><h5>Add a card</h5>
+    ${bar?`<div class="allocbar">${bar}</div>${allocLegend}`:''}
+    <div class="card-sec" style="margin-top:0"><h5>Add a card you own</h5>
       <div class="addrow">
         <input id="pf-search" list="pf-cards" placeholder="Search your cards…">
         <datalist id="pf-cards">${CARDINDEX.map(c=>`<option value="${c.name}${c.number?' '+c.number:''}">`).join("")}</datalist>
@@ -405,9 +451,10 @@ function renderPortfolio(){
         <input id="pf-qty2" type="number" min="1" value="1">
         <input id="pf-cost2" type="number" min="0" placeholder="cost ea (opt)">
         <button class="btn add" id="pf-add2">+ Add</button></div>
-      <div class="sub" id="pf-mode" style="margin-top:8px"></div></div>
-    <table class="tbl"><thead><tr><th>Card</th><th class="r">Qty</th><th class="r">Unit est.</th><th class="r">Value</th><th class="r">Cost</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="6" class="sub">No holdings yet — add a card above.</td></tr>'}</tbody></table>`;
+      <div class="sub" id="pf-mode" style="margin-top:9px;color:var(--faint);font-size:11.5px"></div></div>
+    <div class="pfwrap">
+    <table class="tbl"><thead><tr><th style="padding-left:16px">Card</th><th class="r">Qty</th><th class="r">Unit est.</th><th class="r">Value</th><th class="r">Cost</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6"><div class="empty"><span class="big-ic">💼</span>No holdings yet — search a card above and add it with its grade.</div></td></tr>'}</tbody></table></div>`;
   $("#pf-mode").textContent=pfServer?"Saved on the server (.lastprice_portfolio.json).":"Saved in this browser (localStorage).";
   const sEl=$("#pf-search"),gEl=$("#pf-grade2");
   function sync(){const c=findCard(sEl.value);gEl.innerHTML=c?c.grades.map(g=>`<option value="${g.grade_label}">${g.grade_label}</option>`).join(""):"";gEl.dataset.base=c?c.base_key:"";}
@@ -420,13 +467,14 @@ function setPage(page){
 function route(){
   const h=location.hash.replace(/^#\/?/,"");
   if(h.startsWith("card/")){setPage("card");renderCardDetail(decodeURIComponent(h.slice(5)));}
-  else if(h==="cards"){setPage("cards");renderCards();}
+  else if(h==="ops"){setPage("ops");renderOps();}
   else if(h==="portfolio"){setPage("portfolio");renderPortfolio();}
-  else{setPage("ops");renderOps();}}
+  else{setPage("cards");renderCards();}}
 
 function init(){
   const mp=$("#modepill");mp.textContent="mode "+MODE;mp.classList.add(MODE);
-  $("#src").textContent="· updated "+UPDATED;
+  $("#src").textContent="· data updated "+UPDATED;
+  if(MODE==="demo")$("#demobar").hidden=false;
   initPriceRange();rebuildFacets();
 
   $("#search").addEventListener("input",e=>{state.search=e.target.value;route();});
