@@ -40,6 +40,36 @@ class TestWeb(unittest.TestCase):
         games = {o.to_dict()["game"] for o in self.opps}
         self.assertGreaterEqual(len(games), 4)  # pokemon, riftbound, one piece, sports, magic
 
+    def test_render_inlines_card_index(self):
+        html = render_html(self.opps, self.engine)
+        self.assertIn("const CARDINDEX = [", html)
+        self.assertNotIn("/*__CARDINDEX__*/[]", html)
+        self.assertIn("let PF = null", html)  # static export -> localStorage mode
+
+    def test_cards_and_card_routes(self):
+        from lastprice.cards import build_card_index_from_engine, card_detail, card_summaries
+
+        index = build_card_index_from_engine(self.engine)
+        summaries = card_summaries(index)
+        self.assertTrue(summaries)
+        # a known card resolves to a detail with a multi-grade ladder
+        base = next(c["base_key"] for c in summaries if c["name"] == "Charizard")
+        detail = card_detail(index, base)
+        self.assertGreaterEqual(len(detail["grades"]), 3)
+
+    def test_portfolio_post_roundtrip_via_handler_logic(self):
+        from lastprice.cards import build_card_index_from_engine
+        from lastprice.portfolio import Portfolio
+
+        index = build_card_index_from_engine(self.engine)
+        with tempfile.TemporaryDirectory() as d:
+            pf = Portfolio(os.path.join(d, "pf.json"))
+            pf.add("Charizard 4/102 Base Set", grader="PSA", grade="10", qty=2)
+            valued = pf.valued(index)
+            self.assertEqual(valued["n_holdings"], 1)
+            self.assertEqual(valued["holdings"][0]["value_basis"], "comps")
+            self.assertGreater(valued["total_value_usd"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

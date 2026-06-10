@@ -108,6 +108,8 @@ def main(argv=None) -> int:
     p.add_argument("--export-html", default=None, metavar="PATH", help="write a static HTML snapshot and exit")
     p.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"), help="web server host")
     p.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")), help="web server port")
+    p.add_argument("--portfolio-file", default=os.environ.get("PORTFOLIO_PATH", ".lastprice_portfolio.json"),
+                   help="portfolio storage file (server mode)")
     args = p.parse_args(argv)
 
     if args.check:
@@ -128,9 +130,11 @@ def main(argv=None) -> int:
         return 0
 
     if args.serve:
+        from .portfolio import Portfolio
         from .web import serve
 
-        serve(engine, host=args.host, port=args.port)
+        serve(engine, host=args.host, port=args.port,
+              portfolio=Portfolio(args.portfolio_file))
         return 0
 
     opps = engine.scan(query=args.query, limit=args.limit)

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lastprice — card terminal</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">last<span>price</span></div>
+  <span id="modepill" class="mode">—</span>
+  <nav class="nav">
+    <a href="#/ops" data-nav="ops" class="active">Opportunities</a>
+    <a href="#/cards" data-nav="cards">Cards</a>
+    <a href="#/portfolio" data-nav="portfolio">Portfolio</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="glob"><input id="search" type="search" placeholder="Search cards, sets, players…"></div>
+  <label class="toggle"><input id="auto" type="checkbox" checked> auto</label>
+  <button id="refresh" class="btn">↻</button>
+</div>
+
+<!-- ===================== OPPORTUNITIES ===================== -->
+<div id="page-ops">
+<div class="stats" id="stats"></div>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="facet">
+      <h4>Sort</h4>
+      <select id="sort">
+        <option value="score">Best opportunity</option>
+        <option value="edge_usd">Edge ($) high→low</option>
+        <option value="spread_pct">Edge (%) high→low</option>
+        <option value="trend">24h trend high→low</option>
+        <option value="price_desc">List price high→low</option>
+        <option value="price_asc">List price low→high</option>
+        <option value="name">Card A→Z</option>
+      </select>
+    </div>
+    <div class="facet">
+      <h4>Min edge</h4>
+      <div class="range">
+        <div class="lab"><span>percent</span><span id="minpctv">10%</span></div>
+        <input id="minpct" type="range" min="0" max="50" value="10">
+        <div class="lab" style="margin-top:8px"><span>dollars</span><span id="minusdv">$5</span></div>
+        <input id="minusd" type="range" min="0" max="1000" step="5" value="5">
+      </div>
+    </div>
+    <div class="facet">
+      <h4>List price</h4>
+      <div class="range">
+        <div class="lab"><span id="minpricev">$0</span><span id="maxpricev">$0</span></div>
+        <input id="minprice" type="range" min="0" max="100" value="0">
+        <input id="maxprice" type="range" min="0" max="100" value="100">
+      </div>
+    </div>
+    <div class="facet"><h4>Game <a data-all="game">all</a></h4><div id="facet-game"></div></div>
+    <div class="facet"><h4>Grade <a data-all="grade_label">all</a></h4><div id="facet-grade_label"></div></div>
+    <div class="facet"><h4>Marketplace <a data-all="marketplace">all</a></h4><div id="facet-marketplace"></div></div>
+    <div class="facet"><h4>Grader <a data-all="grader">all</a></h4><div id="facet-grader"></div></div>
+  </aside>
+
+  <div class="content">
+    <div class="toolbar">
+      <div class="tabs">
+        <button data-tab="ops" class="active">Opportunities</button>
+        <button data-tab="activity">Activity <span class="pill" id="actcount">0</span></button>
+      </div>
+      <div class="viewtoggle" id="viewtoggle">
+        <button data-view="table" class="active">Table</button>
+        <button data-view="grid">Grid</button>
+      </div>
+    </div>
+    <div id="pane-ops">
+      <div class="toolbar" style="border-top:0;padding-top:0;border-bottom:1px solid var(--line)">
+        <span class="count" id="count"></span>
+      </div>
+      <div class="tablewrap" id="tablewrap"></div>
+      <div class="grid" id="gridwrap" hidden></div>
+    </div>
+    <div id="pane-activity" hidden>
+      <div class="note" id="actnote" hidden>Illustrative activity synthesized from the current snapshot — the live feed streams real listing/price changes when served.</div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== CARDS BROWSE ===================== -->
+<div id="page-cards" hidden>
+  <div class="pagebar"><h2>Cards</h2><span class="count" id="cardscount"></span>
+    <span class="sub">value per grade from sold comps · click a card for detail</span></div>
+  <div class="cardsgrid" id="cardsgrid"></div>
+</div>
+
+<!-- ===================== CARD DETAIL ===================== -->
+<div id="page-card" hidden>
+  <div id="carddetail"></div>
+</div>
+
+<!-- ===================== PORTFOLIO ===================== -->
+<div id="page-portfolio" hidden>
+  <div class="pagebar"><h2>Portfolio</h2><span class="sub">estimated value of cards you own</span></div>
+  <div id="portfolio"></div>
+</div>
+
+<div class="drawer-bg" id="drawerbg"></div>
+<div class="drawer" id="drawer"><button class="dclose" id="dclose">×</button><div id="drawerbody"></div></div>
+
+<footer>
+  Prices are estimates; verify before buying. Not financial advice. Value = weighted median of
+  sold comps (180d); opportunity sparklines are illustrative. Sample data in demo mode.
+  <span id="src"></span>
+</footer>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

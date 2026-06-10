@@ -24,11 +24,15 @@ _ENDPOINTS = [
         "PPT_API_BASE", "https://www.pokemonpricetracker.com/api/v1") + "/prices?search=charizard"),
     ("Phygitals API", os.environ.get("PHYGITALS_API_BASE", "https://www.phygitals.com")
         + os.environ.get("PHYGITALS_LISTINGS_PATH", "/api/marketplace/listings") + "?limit=1"),
+    ("OpenSea API (Courtyard)", os.environ.get("OPENSEA_API_BASE", "https://api.opensea.io/api/v2")
+        + "/listings/collection/"
+        + os.environ.get("COURTYARD_COLLECTION_SLUG", "courtyard-nft") + "/all?limit=1"),
 ]
 
 # (label, env var, required?)
 _ENV = [
     ("PPT_API_KEY", "PPT_API_KEY", True),
+    ("OPENSEA_API_KEY", "OPENSEA_API_KEY", False),
     ("SOL_USD", "SOL_USD", False),
     ("CC_COLLECTION_SYMBOL", "CC_COLLECTION_SYMBOL", False),
     ("PHYGITALS_API_BASE", "PHYGITALS_API_BASE", False),

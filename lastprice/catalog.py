@@ -22,6 +22,7 @@ def _entry(key: CardKey) -> dict:
     grade = f"{key.grader} {key.grade}".strip() if (key.grader or key.grade) else "Raw"
     return {
         "key": key.canonical(),
+        "base_key": key.base_canonical(),
         "card": str(key),
         "name": key.name,
         "game": key.game or "other",

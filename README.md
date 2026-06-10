@@ -1,13 +1,26 @@
 # lastprice
 
-Cross-market trading-card **arbitrage scanner**. It pulls current card market
-prices from a licensed price source and live listings from one or more
-marketplaces (Collector Crypt, Phygitals, …), normalizes every card to a
-canonical identity, and surfaces **listings priced below market** — with a
-deep link straight to the listing.
+A cross-market trading-card **price terminal**. Three things in one zero-dependency app:
 
-> Find a Pokémon card whose price is spiking, then instantly see where it's
-> listed cheap on Collector Crypt / Phygitals.
+1. **Opportunities** — listings priced below market across Collector Crypt,
+   Courtyard and Phygitals, with buy/gacha acquisition paths.
+2. **Cards** (alt.xyz-style) — per-card **grade ladder** (PSA 10 vs PSA 9 vs Raw
+   priced separately) with comp-based value estimates, **sold-price history
+   charts**, and **side-by-side cross-market listings** — the differentiator:
+   an alt-style value next to three concrete places to buy.
+3. **Portfolio** — register the cards you own and see their estimated value in
+   real time (server-stored, or browser localStorage in the static export).
+
+> Find a card whose price is spiking, see its true value per grade from sold
+> comps, and instantly compare every marketplace selling it.
+
+## Value estimation
+
+Per grade, value = **recency-weighted median** of sold comps within 180 days
+(weight `0.5 ** age/45d`), with a p25–p75 band and an n-based confidence tag.
+Honest and transparent — surfaced verbatim in the UI, no black box. alt.xyz is
+a UX benchmark only (no public API); comps come from sample data in demo mode
+and a licensed sold-listings API (PokemonPriceTracker) in live mode.
 
 ## Quick start (offline demo — no network needed)
 
@@ -26,15 +39,21 @@ Umbreon Vmax [Evolving Skies 215/203] PSA 10  phygitals          900     1,300  
 ## Live mode
 
 ```bash
-export PPT_API_KEY=...        # pokemonpricetracker.com API key
+export PPT_API_KEY=...        # pokemonpricetracker.com API key (prices + sold comps)
+export OPENSEA_API_KEY=...    # for Courtyard listings (OpenSea API)
 export SOL_USD=150            # optional: pins SOL->USD (else live oracle/fallback)
 python -m lastprice --check                 # verify connectivity + config first
 python -m lastprice --live --limit 100
 ```
 
-Live scans **Collector Crypt + Phygitals** (both via Magic Eden). Options:
-`--query`, `--limit`, `--min-spread-pct`, `--min-spread-usd`, `--json`,
-`--collection` (override CC symbol).
+Live scans **Collector Crypt + Phygitals + Courtyard**. Options: `--query`,
+`--limit`, `--min-spread-pct`, `--min-spread-usd`, `--json`, `--collection`
+(CC symbol), `--portfolio-file` (server portfolio storage).
+
+Marketplaces: Collector Crypt + Phygitals are Solana; Courtyard is Polygon via
+the OpenSea API (`OPENSEA_API_KEY`, slug `COURTYARD_COLLECTION_SLUG`). Sold
+comps come from `PokemonPriceTrackerSalesSource` (live) — its response mapping
+is isolated in `_comps_from_response`, verify against the live schema.
 
 ### Self-check
 
@@ -52,16 +71,34 @@ python -m lastprice --live --alert discord --webhook "$DISCORD_WEBHOOK_URL"
 python -m lastprice --demo --alert console --state-file alerts.json
 ```
 
-### Currency (SOL → USD)
+### Currency conversion
 
-Magic Eden lists in SOL. `fx.py` resolves the rate from `SOL_USD` env → live
-oracle (`SOL_USD_ORACLE_URL`, default CoinGecko) → `SOL_USD_FALLBACK`. Stable-
-coins (USDC/USDT) pass through as USD.
+Marketplaces price in SOL (Magic Eden), ETH/POL (OpenSea/Courtyard), or USDC.
+`fx.py` resolves each crypto→USD rate from `<SYM>_USD` env → CoinGecko oracle →
+fallback; USDC/USDT pass through. Aliases: WETH→ETH, MATIC→POL.
 
 ## Web dashboard
 
-A zero-dependency, Blur-style trading terminal (pure stdlib server). Dense dark
-UI with a stats strip (total edge, avg/best %, market & game counts), live
+A zero-dependency terminal (pure stdlib server) with three pages — **hash-routed**
+so the static export stays a fully working single file (`#/ops`, `#/cards`,
+`#/card/<key>`, `#/portfolio`).
+
+- **Opportunities** — Blur-style dense table/grid: stats strip, faceted filters
+  (game/grade/market/grader), price sliders, activity tab, buy-vs-gacha drawer.
+- **Cards** — searchable grid of base cards; click for a detail page with the
+  grade ladder, an SVG sold-price history chart (one line per grade, toggleable),
+  and a cross-market live-listings table.
+- **Portfolio** — search-and-add holdings with a grade picker; total value,
+  unrealized P/L, allocation-by-game. Saved server-side (`--portfolio-file`,
+  `POST /api/portfolio`) or in `localStorage` for the static export.
+
+Routes: `/`, `/api/opportunities`, `/api/cards`, `/api/card/{base_key}`,
+`/api/catalog`, `/api/activity`, `/api/portfolio` (GET/POST), `/healthz`. A
+short-lived snapshot cache (`LASTPRICE_CACHE_TTL`, default 60s) avoids hammering
+live APIs. Assets live as real files in `lastprice/web/assets/` and are inlined
+at render time into one self-contained HTML.
+
+The legacy dense dashboard still applies to the Opportunities page:
 client-side **search**, **sort** (best / edge $ / edge % / 24h / price), faceted
 **filters** for game (Pokémon, Riftbound, One Piece, sports, Magic, …),
 marketplace and grader, plus **table/grid** views and 20s auto-refresh.
