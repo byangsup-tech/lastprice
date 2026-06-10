@@ -2,7 +2,7 @@ name: Deploy dashboard to GitHub Pages
 
 on:
   push:
-    branches: ["claude/goal-feature-usability-9m77f"]
+    branches: ["main", "claude/goal-feature-usability-9m77f"]
   workflow_dispatch:
 
 permissions:
