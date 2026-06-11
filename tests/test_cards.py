@@ -47,6 +47,17 @@ class TestCardIndex(unittest.TestCase):
         self.assertTrue(psa10["sales"])  # sold history newest-first
         self.assertGreaterEqual(psa10["sales"][0]["sold_at"], psa10["sales"][-1]["sold_at"])
 
+    def test_listings_have_per_site_insured_value(self):
+        e = self.by_name["Charizard"]
+        psa10 = e["grades"][0]
+        for l in psa10["listings"]:
+            self.assertIn("insured_usd", l)
+            self.assertGreater(l["insured_usd"], 0)
+        # platform policy makes insured vary by marketplace
+        mkts = {l["marketplace"]: l["insured_usd"] for l in psa10["listings"]}
+        if "courtyard" in mkts and "collector_crypt" in mkts:
+            self.assertLess(mkts["courtyard"], mkts["collector_crypt"])
+
     def test_summaries_and_detail_shapes(self):
         summaries = card_summaries(self.index)
         self.assertTrue(summaries)
