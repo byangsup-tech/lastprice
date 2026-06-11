@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDaycares } from "@/lib/cache";
+import { getDaycaresForArea } from "@/lib/cache";
 import { queryDaycares } from "@/lib/filter";
 import { RADIUS_OPTIONS, type SortKey } from "@/lib/types";
 
 export const runtime = "nodejs";
+// 콜드 스타트 시 여러 시군구를 처음 수집할 수 있어 기본 10초보다 여유를 둠
+export const maxDuration = 60;
 
 const SORT_KEYS: SortKey[] = ["distance", "avail", "ratio"];
 
@@ -41,7 +43,7 @@ export async function GET(req: NextRequest) {
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const { data, source } = await getDaycares();
+  const { data, source, meta } = await getDaycaresForArea(lat, lng, radius);
   const items = queryDaycares(data, {
     lat,
     lng,
@@ -53,5 +55,7 @@ export async function GET(req: NextRequest) {
     sort,
   });
 
-  return NextResponse.json({ source, count: items.length, items });
+  const body: Record<string, unknown> = { source, count: items.length, items };
+  if (sp.get("debug") === "1") body.meta = meta;
+  return NextResponse.json(body);
 }

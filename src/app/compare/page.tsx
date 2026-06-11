@@ -27,9 +27,13 @@ function CompareContent() {
     let cancelled = false;
     (async () => {
       try {
+        // 서버 캐시가 비어있을 때(콜드 스타트) 주변 시군구를 불러올 수 있도록 기준 좌표 전달
+        const nearQuery = center ? `?lat=${center.lat}&lng=${center.lng}` : "";
         const results = await Promise.all(
           ids.map(async (id) => {
-            const res = await fetch(`/api/daycares/${encodeURIComponent(id)}`);
+            const res = await fetch(
+              `/api/daycares/${encodeURIComponent(id)}${nearQuery}`,
+            );
             if (!res.ok) return null;
             const body = await res.json();
             return body.item as Daycare;

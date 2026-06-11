@@ -14,7 +14,7 @@
 
 - Next.js (App Router, TypeScript) + Tailwind CSS — 모바일 우선 웹앱
 - Leaflet + OpenStreetMap (react-leaflet) — API 키 불필요
-- 데이터: [한국사회보장정보원 전국 어린이집 정보 조회](https://www.data.go.kr/data/15101155/openapi.do) (data.go.kr 오픈 API)
+- 데이터: [어린이집정보공개포털 보육정보공개 API](https://info.childcare.go.kr) (api.childcare.go.kr, 시군구 단위 조회)
 
 ## 실행 방법
 
@@ -28,15 +28,15 @@ API 키 없이 실행하면 **데모 모드**(강남/서초 일대 목업 데이
 
 ## 전국 실데이터 연동
 
-1. [공공데이터포털](https://www.data.go.kr/data/15101155/openapi.do)에서 "활용신청" 후 인증키 발급
-2. `.env.local` 파일 생성:
+1. [어린이집정보공개포털](https://info.childcare.go.kr)에서 보육정보공개 OPEN API 신청 후 인증키 발급
+2. `.env.local` 파일 생성 (Vercel이면 Settings → Environment Variables):
    ```bash
    cp .env.local.example .env.local
-   # DATA_GO_KR_API_KEY=발급받은_인증키
+   # CHILDCARE_API_KEY=발급받은_인증키
    ```
-3. 서버 재시작
+3. 서버 재시작 (Vercel이면 Redeploy)
 
-첫 요청 시 전국 약 3만 개 어린이집 데이터를 페이징 수집해 `.cache/daycares.json`에 저장합니다(30초~1분 소요). 이후 요청은 캐시를 사용하며 24시간마다 자동 갱신됩니다. API 장애 시 이전 캐시 → 데모 데이터 순으로 폴백합니다.
+이 API는 시군구 단위 조회만 지원하고 일 호출 한도(기본 1,000회)가 있어, **검색 위치 주변 시군구만 필요할 때 조회**하고 시군구별로 24시간 캐싱합니다(서버리스에서는 `/tmp`). 어떤 시군구가 조회됐는지는 `/api/daycares?...&debug=1`의 `meta` 필드로 확인할 수 있습니다. 호출 실패 시 만료된 캐시 → 데모 데이터 순으로 폴백합니다.
 
 ## 구조
 
