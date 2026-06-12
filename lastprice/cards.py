@@ -16,11 +16,6 @@ from .gacha import GachaPool
 from .models import CardKey, Listing, PriceQuote, SoldComp, grade_sort_key
 from .valuation import estimate_from_comps
 
-# Each vaulting marketplace insures stored cards at a declared coverage value.
-# Modeled as grade value x a platform policy factor (Brink's-vaulted Courtyard
-# tends conservative; Phygitals near market) until real insured data is wired.
-INSURE_FACTOR = {"collector_crypt": 1.00, "courtyard": 0.95, "phygitals": 1.03}
-
 
 def _base_entry(key: CardKey) -> dict:
     return {
@@ -116,19 +111,6 @@ def build_card_index(
             row["sales"].sort(key=lambda s: s["sold_at"], reverse=True)
             row["gacha"].sort(key=lambda g: g["expected_cost_usd"])
             row["lowest_ask_usd"] = row["listings"][0]["price_usd"] if row["listings"] else None
-            # Per-site insured value: each vault declares coverage for the card.
-            # Modeled here as the grade value x a platform policy factor until
-            # real per-platform insured data is wired in.
-            base_val = (
-                row["estimate"]["estimate_usd"] if row["estimate"]
-                else row["quote_usd"] if row["quote_usd"] is not None
-                else row["lowest_ask_usd"]
-            )
-            for l in row["listings"]:
-                l["insured_usd"] = (
-                    round(base_val * INSURE_FACTOR.get(l["marketplace"], 1.0))
-                    if base_val else None
-                )
         rows.sort(key=lambda r: grade_sort_key(r["grader"], r["grade"]))
         e["grades"] = rows
         ests = [r["estimate"]["estimate_usd"] for r in rows if r["estimate"]]

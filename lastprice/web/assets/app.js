@@ -337,10 +337,9 @@ function renderCardDetail(baseKey){
     const d=l.est?(l.est-l.price_usd)/l.est*100:null;
     return `<tr><td><span class="mk">${mk(l.marketplace)}</span></td><td><span class="badge">${l.grade}</span></td>
       <td class="r" style="font-weight:650">${money(l.price_usd)}</td>
-      <td class="r" style="color:var(--txt2)">${l.insured_usd!=null?money(l.insured_usd):'—'}</td>
       <td class="r ${d==null?'':(d>=0?'pos':'neg')}">${d==null?'—':(d>=0?'−':'+')+Math.abs(d).toFixed(0)+'%'}</td>
       <td class="r"><a class="buy" href="${l.url||'#'}" target="_blank" rel="noopener">Buy →</a></td></tr>`;}).join("")
-    :`<tr><td colspan="6" class="sub" style="padding:14px 10px">No live listings across markets.</td></tr>`;
+    :`<tr><td colspan="5" class="sub" style="padding:14px 10px">No live listings across markets.</td></tr>`;
   const allS=[];c.grades.forEach(g=>g.sales.forEach(s=>allS.push({...s,grade:g.grade_label})));
   allS.sort((a,b)=>b.sold_at.localeCompare(a.sold_at));
   const sold=allS.slice(0,40).map(s=>`<tr><td class="sub">${new Date(s.sold_at).toLocaleDateString()}</td>
@@ -371,8 +370,7 @@ function renderCardDetail(baseKey){
         <table class="tbl"><thead><tr><th>Grade</th><th class="r">Est. value</th><th class="r">Last sold</th><th class="r">Lowest ask</th><th class="r">#</th><th class="r">Ask vs est</th></tr></thead><tbody>${ladder}</tbody></table>
         <div class="sub" style="padding:8px 2px;color:var(--faint);font-size:11px">Est. value = weighted median of sales within 180d.</div></div>
       <div class="card-sec"><h5>Live listings · all markets</h5>
-        <table class="tbl"><thead><tr><th>Market</th><th>Grade</th><th class="r">Ask</th><th class="r">Insured</th><th class="r">vs est</th><th></th></tr></thead><tbody>${xmkt}</tbody></table>
-        <div class="sub" style="padding:8px 2px;color:var(--faint);font-size:11px">Insured = each vault's declared coverage (modeled from grade value × platform policy in demo).</div></div>
+        <table class="tbl"><thead><tr><th>Market</th><th>Grade</th><th class="r">Ask</th><th class="r">vs est</th><th></th></tr></thead><tbody>${xmkt}</tbody></table></div>
     </div>
     <div class="card-sec"><h5>Recent sales</h5>
       <table class="tbl"><thead><tr><th>Date</th><th>Grade</th><th class="r">Price</th><th>Source</th></tr></thead>
