@@ -31,8 +31,41 @@ export default function ValuationTable({ quotes }: Props) {
         피어 중앙값 대비 상대 평가입니다. · <span className="font-medium">투자자문 아님</span>
       </p>
 
-      <div className="-mx-4 overflow-x-auto sm:mx-0">
-        <table className="w-full min-w-[560px] text-sm">
+      {/* 모바일: 카드 목록 (가로 스크롤 없이 평가 배지까지 노출) */}
+      <ul className="space-y-2 sm:hidden">
+        {rows.map(({ q, v }) => {
+          const c = companyByTicker(q.ticker);
+          return (
+            <li
+              key={q.ticker}
+              className="rounded-xl border border-gray-100 p-3"
+              style={{
+                borderLeft: `3px solid ${FACTION_COLOR[(c?.faction ?? "US") as "US" | "CN"]}`,
+              }}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="font-semibold text-gray-800">
+                  {c?.name ?? q.ticker}
+                </span>
+                <ValuationBadge verdict={v.verdict} />
+              </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                <Metric label="시총" value={fmtUsdB(q.marketCapUsd)} />
+                <Metric label="P/S" value={fmtX(q.priceToSales)} />
+                <Metric label="매출성장" value={fmtPct(q.revenueGrowth)} />
+                <Metric
+                  label="보정 P/S"
+                  value={v.gaPS == null ? "—" : fmtX(v.gaPS)}
+                />
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* 데스크톱: 표 */}
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
               <th className="px-3 py-2">기업</th>
@@ -84,5 +117,14 @@ export default function ValuationTable({ quotes }: Props) {
         </table>
       </div>
     </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between">
+      <dt className="text-gray-400">{label}</dt>
+      <dd className="font-medium text-gray-700">{value}</dd>
+    </div>
   );
 }

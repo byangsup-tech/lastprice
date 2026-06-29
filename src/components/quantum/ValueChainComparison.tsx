@@ -85,8 +85,22 @@ export default function ValueChainComparison({ quotes }: Props) {
                     {isOpen ? "▲ 접기" : "▼ 기업 보기"}
                   </span>
                 </div>
-                {/* 양방향 막대: 좌(미국) / 우(중국) */}
-                <div className="flex items-center gap-2">
+                {/* 모바일: 미·중 두 줄로 스택 (단방향 막대) */}
+                <div className="space-y-1 sm:hidden">
+                  <StageBarRow
+                    faction="US"
+                    cap={us.capUsd}
+                    maxCap={maxCap}
+                  />
+                  <StageBarRow
+                    faction="CN"
+                    cap={cn.capUsd}
+                    maxCap={maxCap}
+                  />
+                </div>
+
+                {/* 데스크톱: 양방향 막대 좌(미국) / 우(중국) */}
+                <div className="hidden items-center gap-2 sm:flex">
                   <div className="flex flex-1 justify-end">
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-medium text-gray-500">
@@ -133,6 +147,37 @@ export default function ValueChainComparison({ quotes }: Props) {
         })}
       </div>
     </section>
+  );
+}
+
+/** 모바일용 단방향 막대 한 줄 (진영 라벨 + 막대 + 시총값) */
+function StageBarRow({
+  faction,
+  cap,
+  maxCap,
+}: {
+  faction: Faction;
+  cap: number;
+  maxCap: number;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-6 shrink-0 text-sm">
+        {faction === "US" ? "🇺🇸" : "🇨🇳"}
+      </span>
+      <div className="h-4 flex-1 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${(cap / maxCap) * 100}%`,
+            background: FACTION_COLOR[faction],
+          }}
+        />
+      </div>
+      <span className="w-12 shrink-0 text-right text-xs font-medium text-gray-500">
+        {fmtUsdB(cap)}
+      </span>
+    </div>
   );
 }
 
