@@ -32,7 +32,27 @@ export interface Daycare {
   sigungu: string;
 }
 
-export type DataSource = "live" | "demo" | "stale";
+export type DataSource = "live" | "demo" | "stale" | "snapshot";
+
+/** 일별 수집 이력 한 지점 (변경 시에만 기록) */
+export interface HistoryEntry {
+  /** YYYY-MM-DD (KST) */
+  d: string;
+  /** 정원 */
+  c: number;
+  /** 현원 */
+  n: number;
+}
+
+export interface TrendMetrics {
+  /** 최근 ≤90일 창 기준 월평균 자리 발생 수 */
+  monthlySlotOpenings: number;
+  /** 창 시작 대비 여유(정원-현원) 변화. 데이터 부족 시 null */
+  availDelta90d: number | null;
+  /** 관측 일수 */
+  daysObserved: number;
+  summaryLabel: string;
+}
 
 export interface DaycareWithDistance extends Daycare {
   /** 기준 위치로부터의 거리(m) */

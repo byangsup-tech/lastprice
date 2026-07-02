@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import CompareTable from "@/components/compare/CompareTable";
-import type { Daycare } from "@/lib/types";
+import type { Daycare, TrendMetrics } from "@/lib/types";
 
 function CompareContent() {
   const searchParams = useSearchParams();
@@ -20,7 +20,34 @@ function CompareContent() {
       : null;
 
   const [items, setItems] = useState<Daycare[] | null>(null);
+  const [trends, setTrends] = useState<Record<string, TrendMetrics | null>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // 항목이 로드되면 추이 지표를 병렬로 가져옴 (부가 정보 — 실패 시 "-")
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        items.map(async (d) => {
+          try {
+            const res = await fetch(
+              `/api/daycares/${encodeURIComponent(d.id)}/history?lat=${d.lat}&lng=${d.lng}`,
+            );
+            if (!res.ok) return [d.id, null] as const;
+            const body = await res.json();
+            return [d.id, (body.metrics ?? null) as TrendMetrics | null] as const;
+          } catch {
+            return [d.id, null] as const;
+          }
+        }),
+      );
+      if (!cancelled) setTrends(Object.fromEntries(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   useEffect(() => {
     if (ids.length === 0) return; // 빈 선택은 렌더에서 직접 처리
@@ -102,7 +129,12 @@ function CompareContent() {
             으로 표시됩니다
           </p>
           <div className="p-2">
-            <CompareTable items={items} center={center} onRemove={removeId} />
+            <CompareTable
+              items={items}
+              center={center}
+              trends={trends}
+              onRemove={removeId}
+            />
           </div>
         </>
       )}

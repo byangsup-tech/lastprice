@@ -1,4 +1,4 @@
-import type { Daycare } from "./types";
+import type { Daycare, HistoryEntry } from "./types";
 
 /** 데모 모드 기본 중심: 강남역 */
 export const DEFAULT_CENTER = { lat: 37.4979, lng: 127.0276 };
@@ -106,3 +106,32 @@ function buildDemoData(): Daycare[] {
 }
 
 export const DEMO_DAYCARES: Daycare[] = buildDemoData();
+
+function isoDaysAgo(daysAgo: number): string {
+  const t = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+  return t.toISOString().slice(0, 10);
+}
+
+/** 데모 모드용 가짜 수집 이력 (~90일) — 실데이터가 쌓이기 전에도 추이 UI를 시연 가능하게 */
+export function buildDemoHistory(id: string): HistoryEntry[] {
+  const daycare = DEMO_DAYCARES.find((x) => x.id === id);
+  if (!daycare) return [];
+  const seed = [...id].reduce((s, ch) => s + ch.charCodeAt(0), 0);
+  const rand = mulberry32(seed * 7919 + 11);
+
+  // 현재 값에서 과거로 거슬러 올라가며 변화 지점을 생성
+  const points: Array<{ daysAgo: number; c: number; n: number }> = [];
+  const c = daycare.capacity;
+  let n = daycare.current;
+  points.push({ daysAgo: 0, c, n });
+  let daysAgo = 0;
+  while (daysAgo < 90) {
+    daysAgo += 4 + Math.floor(rand() * 14);
+    const step = rand() < 0.7 ? 1 : 2;
+    n = Math.min(c, Math.max(Math.floor(c * 0.55), n + (rand() < 0.55 ? step : -step)));
+    points.push({ daysAgo, c, n });
+  }
+  return points
+    .reverse()
+    .map((p) => ({ d: isoDaysAgo(p.daysAgo), c: p.c, n: p.n }));
+}

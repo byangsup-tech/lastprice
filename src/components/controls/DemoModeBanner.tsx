@@ -5,7 +5,7 @@ import type { DataSource } from "@/lib/types";
 
 export default function DemoModeBanner({ source }: { source: DataSource }) {
   const [dismissed, setDismissed] = useState(false);
-  if (dismissed || source === "live") return null;
+  if (dismissed || source === "live" || source === "snapshot") return null;
 
   const message =
     source === "demo"

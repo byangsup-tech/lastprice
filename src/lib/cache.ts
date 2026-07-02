@@ -5,6 +5,7 @@ import { DEMO_DAYCARES } from "./demo-data";
 import { haversineMeters } from "./geo";
 import { fetchByArcode } from "./openapi";
 import { isWideRegion, legacyCode, REGIONS } from "./regions";
+import { isSnapshotFresh, loadRegionSnapshot } from "./snapshot";
 import type { Daycare, DataSource } from "./types";
 
 // Vercel 등 서버리스는 프로젝트 디렉터리가 읽기 전용이므로 /tmp 사용
@@ -91,7 +92,8 @@ export function candidateRegions(lat: number, lng: number, radius: number) {
 
 /**
  * 검색 위치 주변 시군구 데이터를 모아 반환.
- * 키 없음 → demo / 일부 호출 실패(만료 캐시 사용 포함) → stale / 전부 실패+캐시 없음 → demo
+ * 우선순위: 크롤 스냅샷(48h 이내) → 라이브 API(키 있을 때) → 데모.
+ * 일부 호출 실패(만료 캐시 사용 포함) → stale.
  */
 export async function getDaycaresForArea(
   lat: number,
@@ -99,7 +101,8 @@ export async function getDaycaresForArea(
   radius: number,
 ): Promise<AreaResult> {
   const serviceKey = process.env.CHILDCARE_API_KEY;
-  if (!serviceKey) {
+  const snapshotOk = await isSnapshotFresh();
+  if (!serviceKey && !snapshotOk) {
     return {
       data: DEMO_DAYCARES,
       source: "demo",
@@ -111,20 +114,36 @@ export async function getDaycaresForArea(
   const regions = candidateRegions(lat, lng, radius);
   const meta: AreaResult["meta"] = [];
   let anyFailed = false;
+  let usedLive = false;
   let dirty = false;
 
   const CONCURRENCY = 5;
   const results: Daycare[][] = [];
   for (let i = 0; i < regions.length; i += CONCURRENCY) {
     const batch = regions.slice(i, i + CONCURRENCY).map(async (r) => {
+      // 1순위: 크롤러가 커밋한 번들 스냅샷
+      if (snapshotOk) {
+        const snap = await loadRegionSnapshot(r.code);
+        if (snap !== null) {
+          meta.push({ arcode: r.code, name: r.name, count: snap.length });
+          return snap;
+        }
+      }
+      if (!serviceKey) {
+        meta.push({ arcode: r.code, name: r.name, count: 0, error: "no_snapshot" });
+        return [];
+      }
+      // 2순위: 라이브 API (+ 24h 메모리/파일 캐시)
       const cached = mem.get(r.code);
       if (cached && isFresh(cached)) {
+        usedLive = true;
         meta.push({ arcode: r.code, name: r.name, count: cached.data.length });
         return cached.data;
       }
       try {
         const entry = await fetchArcodeOnce(serviceKey, r.code);
         dirty = true;
+        usedLive = true;
         meta.push({ arcode: r.code, name: r.name, count: entry.data.length });
         return entry.data;
       } catch (err) {
@@ -155,11 +174,18 @@ export async function getDaycaresForArea(
     }
   }
 
-  if (merged.length === 0 && anyFailed) {
+  if (merged.length === 0 && anyFailed && !snapshotOk) {
     // 키는 있는데 데이터를 전혀 못 가져옴 — 빈 화면 대신 데모로 안내
     return { data: DEMO_DAYCARES, source: "demo", meta };
   }
-  return { data: merged, source: anyFailed ? "stale" : "live", meta };
+  const source: DataSource = anyFailed
+    ? "stale"
+    : usedLive
+      ? "live"
+      : snapshotOk
+        ? "snapshot"
+        : "live";
+  return { data: merged, source, meta };
 }
 
 /** id(stcode)로 단건 조회. 캐시에 없으면 주변 시군구를 불러와 재시도 */
@@ -168,12 +194,24 @@ export async function findDaycareById(
   near?: { lat: number; lng: number },
 ): Promise<{ daycare: Daycare | null; source: DataSource }> {
   const serviceKey = process.env.CHILDCARE_API_KEY;
-  if (!serviceKey) {
+  const snapshotOk = await isSnapshotFresh();
+  if (!serviceKey && !snapshotOk) {
     return {
       daycare: DEMO_DAYCARES.find((d) => d.id === id) ?? null,
       source: "demo",
     };
   }
+
+  // 스냅샷에서 우선 검색 (near가 있으면 주변 시군구 파일만)
+  if (snapshotOk && near) {
+    for (const r of candidateRegions(near.lat, near.lng, 3000)) {
+      const snap = await loadRegionSnapshot(r.code);
+      const found = snap?.find((d) => d.id === id);
+      if (found) return { daycare: found, source: "snapshot" };
+    }
+  }
+
+  if (!serviceKey) return { daycare: null, source: "snapshot" };
 
   await loadFileCacheOnce();
   for (const entry of mem.values()) {

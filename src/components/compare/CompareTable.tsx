@@ -1,13 +1,20 @@
 "use client";
 
 import { formatDistance, haversineMeters } from "@/lib/geo";
-import { availability, childPerTeacher, type Daycare } from "@/lib/types";
+import {
+  availability,
+  childPerTeacher,
+  type Daycare,
+  type TrendMetrics,
+} from "@/lib/types";
 import { typeBadgeClass } from "@/lib/ui";
 
 interface CompareTableProps {
   items: Daycare[];
   /** 기준 위치 (있으면 거리 행 표시) */
   center: { lat: number; lng: number } | null;
+  /** id별 추이 지표 (없으면 해당 행 "-" 표시) */
+  trends?: Record<string, TrendMetrics | null>;
   onRemove: (id: string) => void;
 }
 
@@ -22,6 +29,7 @@ interface RowDef {
 export default function CompareTable({
   items,
   center,
+  trends,
   onRemove,
 }: CompareTableProps) {
   const distanceOf = (d: Daycare) =>
@@ -55,6 +63,25 @@ export default function CompareTable({
       value: (d) =>
         availability(d) > 0 ? `${availability(d)}명` : "마감",
       num: (d) => availability(d),
+      best: "max",
+    },
+    {
+      label: "월평균 자리 발생",
+      value: (d) => {
+        const t = trends?.[d.id];
+        return t ? `${t.monthlySlotOpenings}자리` : "-";
+      },
+      num: (d) => trends?.[d.id]?.monthlySlotOpenings ?? null,
+      best: "max",
+    },
+    {
+      label: "3개월 여유 변화",
+      value: (d) => {
+        const delta = trends?.[d.id]?.availDelta90d;
+        if (delta === null || delta === undefined) return "-";
+        return `${delta >= 0 ? "+" : ""}${delta}명`;
+      },
+      num: (d) => trends?.[d.id]?.availDelta90d ?? null,
       best: "max",
     },
     { label: "보육교직원", value: (d) => `${d.staffCount}명` },

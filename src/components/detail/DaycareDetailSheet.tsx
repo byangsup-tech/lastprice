@@ -1,12 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { formatDistance } from "@/lib/geo";
 import {
   availability,
   childPerTeacher,
   type DaycareWithDistance,
+  type HistoryEntry,
+  type TrendMetrics,
 } from "@/lib/types";
 import { typeBadgeClass } from "@/lib/ui";
+import TrendChart from "./TrendChart";
 
 interface DaycareDetailSheetProps {
   daycare: DaycareWithDistance;
@@ -25,6 +29,12 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+interface TrendData {
+  history: HistoryEntry[];
+  metrics: TrendMetrics | null;
+  crawledAt: string | null;
+}
+
 export default function DaycareDetailSheet({
   daycare: d,
   compared,
@@ -34,6 +44,27 @@ export default function DaycareDetailSheet({
 }: DaycareDetailSheetProps) {
   const avail = availability(d);
   const ratio = childPerTeacher(d);
+  const [trend, setTrend] = useState<TrendData | null | undefined>(undefined);
+
+  // 추이 데이터는 부가 정보 — 실패 시 섹션을 조용히 숨김
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/daycares/${encodeURIComponent(d.id)}/history?lat=${d.lat}&lng=${d.lng}`,
+        );
+        if (!res.ok) throw new Error();
+        const body = (await res.json()) as TrendData;
+        if (!cancelled) setTrend(body);
+      } catch {
+        if (!cancelled) setTrend(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [d.id, d.lat, d.lng]);
   const fillPercent =
     d.capacity > 0 ? Math.min(100, Math.round((d.current / d.capacity) * 100)) : 0;
 
@@ -104,6 +135,52 @@ export default function DaycareDetailSheet({
               />
             </div>
           </div>
+
+          {/* 정원·현원 추이 (일일 수집 데이터 기반 대기 가능성 간접 지표) */}
+          {trend !== null && (
+            <div className="mt-2 rounded-xl bg-gray-50 p-3">
+              <div className="flex items-baseline justify-between">
+                <p className="text-xs font-bold text-gray-700">정원·현원 추이</p>
+                {trend?.metrics && (
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                    {trend.metrics.summaryLabel}
+                  </span>
+                )}
+              </div>
+              {trend === undefined ? (
+                <div className="mt-2 h-24 animate-pulse rounded-lg bg-gray-100" />
+              ) : trend.history.length >= 2 ? (
+                <>
+                  <div className="mt-2">
+                    <TrendChart history={trend.history} />
+                  </div>
+                  {trend.metrics && (
+                    <p className="mt-1 text-[11px] text-gray-500">
+                      최근 3개월 월평균{" "}
+                      <span className="font-bold text-gray-700">
+                        {trend.metrics.monthlySlotOpenings}자리
+                      </span>{" "}
+                      발생
+                      {trend.metrics.availDelta90d !== null && (
+                        <>
+                          {" "}
+                          · 여유{" "}
+                          {trend.metrics.availDelta90d >= 0 ? "+" : ""}
+                          {trend.metrics.availDelta90d}명 변화
+                        </>
+                      )}{" "}
+                      <span className="text-gray-400">(공시 데이터 기준)</span>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mt-2 text-[11px] text-gray-400">
+                  {trend.metrics?.summaryLabel ??
+                    "데이터 수집 준비 중 — 매일 자동으로 쌓입니다"}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mt-2">
             <Row
