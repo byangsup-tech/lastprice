@@ -9,6 +9,8 @@ import type { CategoryKey, FeedItem, Lang, Market } from "./types";
 interface DemoSeed {
   sourceName: string;
   title: string;
+  /** 수동 번역 (비한국어 시드) — 번역 기능 데모용 */
+  titleKo?: string;
   summary?: string;
   url: string;
   lang: Lang;
@@ -134,6 +136,8 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       sourceName: "Google News (日本) — 保険 新商品",
       title:
         "日本生命、認知症・介護を一体保障する新商品「みらいのカタチ 認知症サポートプラス」を発売",
+      titleKo:
+        "일본생명, 치매·간병 통합보장 신상품 '미라이노카타치 치매서포트플러스' 출시",
       url: "https://news.google.com",
       lang: "ja",
       hoursAgo: 6,
@@ -150,6 +154,7 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
     {
       sourceName: "Google News (中国) — 保险 新产品",
       title: "平安人寿发布重大疾病保险新产品，覆盖120种重疾并扩展轻症保障",
+      titleKo: "핑안생명, 120종 중대질병·경증 보장 확대한 중대질병보험 신상품 발표",
       url: "https://news.google.com",
       lang: "zh",
       hoursAgo: 12,
@@ -167,6 +172,7 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
     {
       sourceName: "Google News (日本) — 保険 新商品",
       title: "第一生命、健康増進型医療保険の新商品を10月から販売開始",
+      titleKo: "다이이치생명, 건강증진형 의료보험 신상품 10월부터 판매 개시",
       url: "https://news.google.com",
       lang: "ja",
       hoursAgo: 21,
@@ -175,6 +181,7 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
     {
       sourceName: "Google News (中国) — 保险 新产品",
       title: "中国人寿推出专属商业养老保险新产品，支持灵活缴费",
+      titleKo: "중국인수, 유연 납입을 지원하는 전속 상업양로보험 신상품 출시",
       url: "https://news.google.com",
       lang: "zh",
       hoursAgo: 26,
@@ -227,6 +234,7 @@ export function demoItems(category: CategoryKey): FeedItem[] {
     sourceName: seed.sourceName,
     category,
     title: seed.title,
+    titleKo: seed.titleKo,
     url: seed.url,
     summary: seed.summary,
     publishedAt: new Date(now - seed.hoursAgo * 60 * 60 * 1000).toISOString(),

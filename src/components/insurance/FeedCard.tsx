@@ -38,8 +38,13 @@ export default function FeedCard({ item, showCategory }: Props) {
         </span>
       </div>
       <h3 className="mt-1 text-sm font-semibold leading-snug text-gray-900">
-        {item.title}
+        {item.titleKo ?? item.title}
       </h3>
+      {item.titleKo && (
+        <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">
+          {item.title}
+        </p>
+      )}
       {item.summary && (
         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">
           {item.summary}

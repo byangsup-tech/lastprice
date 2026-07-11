@@ -33,7 +33,7 @@ export default function InsuranceDashboardPage() {
       if (tab === "new-products" && market !== "all" && it.market !== market)
         return false;
       if (!keyword) return true;
-      return `${it.title} ${it.summary ?? ""} ${it.sourceName} ${(it.tags ?? []).join(" ")}`
+      return `${it.title} ${it.titleKo ?? ""} ${it.summary ?? ""} ${it.sourceName} ${(it.tags ?? []).join(" ")}`
         .toLowerCase()
         .includes(keyword);
     });
@@ -103,6 +103,13 @@ export default function InsuranceDashboardPage() {
               설정하면 실데이터로 전환됩니다.
             </>
           )}
+        </div>
+      )}
+
+      {data?.translation === "no-key" && (
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs leading-relaxed text-gray-500">
+          🌐 <code className="rounded bg-gray-100 px-1">DEEPL_API_KEY</code>를
+          설정하면 일본어·중국어 제목이 한국어로 자동 번역됩니다 (무료 월 50만 자).
         </div>
       )}
 

@@ -6,6 +6,7 @@ import { hasNaverKeys, searchNaverNews } from "./naver";
 import { fetchText } from "./http";
 import { parseFeed, type ParsedFeedItem } from "./rss";
 import { SCRAPERS, scrapeBoard } from "./scrapers";
+import { applyTranslations } from "./translate";
 import { SOURCES } from "./sources";
 import {
   CATEGORIES,
@@ -160,9 +161,12 @@ export async function collectFeeds(): Promise<FeedResponse> {
 
   items.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
+  const translation = await applyTranslations(items);
+
   return {
     items,
     sources: states,
+    translation,
     generatedAt: new Date().toISOString(),
   };
 }

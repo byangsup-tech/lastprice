@@ -61,6 +61,8 @@ export interface FeedItem {
   sourceName: string;
   category: CategoryKey;
   title: string;
+  /** 한국어 자동 번역 제목 (원문이 비한국어일 때) */
+  titleKo?: string;
   url: string;
   summary?: string;
   /** ISO 8601 */
@@ -91,8 +93,12 @@ export interface SourceState {
   error?: string;
 }
 
+/** 제목 자동 번역 상태 */
+export type TranslationStatus = "on" | "no-key" | "error";
+
 export interface FeedResponse {
   items: FeedItem[];
   sources: SourceState[];
+  translation: TranslationStatus;
   generatedAt: string;
 }
