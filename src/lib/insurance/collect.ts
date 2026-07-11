@@ -4,6 +4,7 @@ import { demoItems } from "./demo-data";
 import { hasNaverKeys, searchNaverNews } from "./naver";
 import { fetchText } from "./http";
 import { parseFeed, type ParsedFeedItem } from "./rss";
+import { SCRAPERS, scrapeBoard } from "./scrapers";
 import { SOURCES } from "./sources";
 import {
   CATEGORIES,
@@ -76,6 +77,11 @@ async function fetchSource(def: SourceDef): Promise<ParsedFeedItem[]> {
       return searchNaverNews(def.query!, def.limit ?? DEFAULT_LIMIT);
     case "dart":
       return fetchDartInsurerFilings();
+    case "scrape": {
+      const config = SCRAPERS[def.id];
+      if (!config) throw new Error(`스크레이퍼 설정 없음: ${def.id}`);
+      return scrapeBoard(config);
+    }
   }
 }
 

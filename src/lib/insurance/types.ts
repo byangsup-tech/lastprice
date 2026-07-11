@@ -18,7 +18,7 @@ export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   research: "리서치",
 };
 
-export type SourceKind = "rss" | "naver-news" | "dart";
+export type SourceKind = "rss" | "naver-news" | "dart" | "scrape";
 
 export interface SourceDef {
   id: string;

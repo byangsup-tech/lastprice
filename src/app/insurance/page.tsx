@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import FeedCard from "@/components/insurance/FeedCard";
 import SourceStatusStrip from "@/components/insurance/SourceStatusStrip";
@@ -63,6 +64,12 @@ export default function InsuranceDashboardPage() {
         </p>
         <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
           {data && <span>{formatRelativeTime(data.generatedAt)} 갱신</span>}
+          <Link
+            href="/insurance/stats"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-teal-500 hover:text-teal-700"
+          >
+            📊 위험률 통계
+          </Link>
           <button
             onClick={() => void reload()}
             disabled={loading}
@@ -162,9 +169,9 @@ export default function InsuranceDashboardPage() {
       </section>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-center text-xs leading-relaxed text-gray-400">
-        1단계 (뉴스·공시 스트림) — RSS·공개 API 기반 자동 수집 · 15분 캐시
+        RSS·공개 API·게시판 수집 · 15분 캐시 · 배타적사용권(생보/손보협회) 포함
         <br />
-        2단계 예정: 배타적사용권 게시판 · 보험연구원 리포트 · 위험률 통계 패널
+        다음 확장 후보: 금감원 분쟁조정례 · 보험업법 의안 추적 · 경쟁사 CSM/VNB 패널
       </footer>
     </main>
   );

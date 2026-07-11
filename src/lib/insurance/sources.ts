@@ -128,6 +128,24 @@ export const SOURCES: SourceDef[] = [
 
   // ── 신상품 ─────────────────────────────────────────────────
   {
+    id: "klia-exclusive",
+    name: "생보협회 배타적사용권",
+    category: "new-products",
+    kind: "scrape",
+    lang: "ko",
+    homepage: "https://www.klia.or.kr/member/exclUse/exclResult/list.do",
+    limit: 10,
+  },
+  {
+    id: "knia-exclusive",
+    name: "손보협회 배타적사용권",
+    category: "new-products",
+    kind: "scrape",
+    lang: "ko",
+    homepage: "https://www.knia.or.kr/report/new-review/new-review02",
+    limit: 10,
+  },
+  {
     id: "coverager-product",
     name: "Coverager — Product",
     category: "new-products",
@@ -156,6 +174,15 @@ export const SOURCES: SourceDef[] = [
   },
 
   // ── 리서치 ─────────────────────────────────────────────────
+  {
+    id: "kiri-reports",
+    name: "보험연구원 리포트",
+    category: "research",
+    kind: "scrape",
+    lang: "ko",
+    homepage: "https://www.kiri.or.kr",
+    limit: 10,
+  },
   {
     id: "mckinsey",
     name: "McKinsey Insights",

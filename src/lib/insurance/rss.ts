@@ -20,7 +20,7 @@ const ENTITIES: Record<string, string> = {
   nbsp: " ",
 };
 
-function decodeEntities(text: string): string {
+export function decodeEntities(text: string): string {
   return text
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
       String.fromCodePoint(parseInt(hex, 16)),
@@ -29,11 +29,11 @@ function decodeEntities(text: string): string {
     .replace(/&([a-zA-Z]+);/g, (m, name: string) => ENTITIES[name] ?? m);
 }
 
-function stripCdata(text: string): string {
+export function stripCdata(text: string): string {
   return text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
 }
 
-function stripTags(text: string): string {
+export function stripTags(text: string): string {
   return text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
