@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import DailyBriefing from "@/components/insurance/DailyBriefing";
 import FeedCard from "@/components/insurance/FeedCard";
+import KeywordManager from "@/components/insurance/KeywordManager";
 import SourceStatusStrip from "@/components/insurance/SourceStatusStrip";
 import { useInsuranceFeed } from "@/hooks/useInsuranceFeed";
+import { useKeywords, useScraps } from "@/hooks/useInsurancePrefs";
+import { briefingByCategory, matchedKeywords } from "@/lib/insurance/daily";
 import { formatRelativeTime } from "@/lib/insurance/format";
 import {
   CATEGORIES,
@@ -12,10 +16,11 @@ import {
   MARKETS,
   MARKET_LABELS,
   type CategoryKey,
+  type FeedItem,
   type Market,
 } from "@/lib/insurance/types";
 
-type Tab = "all" | CategoryKey;
+type Tab = "all" | CategoryKey | "scraps";
 type MarketFilter = "all" | Market;
 
 export default function InsuranceDashboardPage() {
@@ -23,21 +28,49 @@ export default function InsuranceDashboardPage() {
   const [tab, setTab] = useState<Tab>("all");
   const [market, setMarket] = useState<MarketFilter>("all");
   const [q, setQ] = useState("");
+  const [onlyKeywords, setOnlyKeywords] = useState(false);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const { keywords, add: addKeyword, remove: removeKeyword } = useKeywords();
+  const { scraps, has: isScrapped, toggle: toggleScrap } = useScraps();
+
+  const matchesOf = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!keywords.length) return map;
+    for (const it of data?.items ?? []) {
+      const m = matchedKeywords(it, keywords);
+      if (m.length) map.set(it.id, m);
+    }
+    return map;
+  }, [data, keywords]);
 
   const items = useMemo(() => {
-    if (!data) return [];
     const keyword = q.trim().toLowerCase();
+    const matchQ = (it: FeedItem) =>
+      !keyword ||
+      `${it.title} ${it.titleKo ?? ""} ${it.summary ?? ""} ${it.sourceName} ${(it.tags ?? []).join(" ")}`
+        .toLowerCase()
+        .includes(keyword);
+
+    // 스크랩 탭: 저장된 스냅샷 기준 (피드에서 사라진 항목도 표시), 검색만 적용
+    if (tab === "scraps") {
+      return scraps.map((s) => s.item).filter(matchQ);
+    }
+    if (!data) return [];
     return data.items.filter((it) => {
       if (tab !== "all" && it.category !== tab) return false;
       // 시장 필터는 신상품 탭에서만 적용
       if (tab === "new-products" && market !== "all" && it.market !== market)
         return false;
-      if (!keyword) return true;
-      return `${it.title} ${it.titleKo ?? ""} ${it.summary ?? ""} ${it.sourceName} ${(it.tags ?? []).join(" ")}`
-        .toLowerCase()
-        .includes(keyword);
+      if (onlyKeywords && !matchesOf.has(it.id)) return false;
+      if (activeTag && !(it.tags ?? []).includes(activeTag)) return false;
+      return matchQ(it);
     });
-  }, [data, tab, market, q]);
+  }, [data, scraps, tab, market, q, onlyKeywords, activeTag, matchesOf]);
+
+  const briefing = useMemo(
+    () => (data ? briefingByCategory(data.items) : []),
+    [data],
+  );
 
   const countByCategory = useMemo(() => {
     const counts = new Map<CategoryKey, number>();
@@ -113,17 +146,36 @@ export default function InsuranceDashboardPage() {
         </div>
       )}
 
+      {tab !== "scraps" && briefing.length > 0 && (
+        <DailyBriefing
+          entries={briefing}
+          onSelectCategory={(category) => setTab(category)}
+        />
+      )}
+
+      <KeywordManager
+        keywords={keywords}
+        onAdd={addKeyword}
+        onRemove={removeKeyword}
+      />
+
       {data && <SourceStatusStrip sources={data.sources} />}
 
       <nav className="flex gap-1.5 overflow-x-auto pb-1" aria-label="카테고리">
-        {(["all", ...CATEGORIES] as Tab[]).map((key) => {
+        {(["all", ...CATEGORIES, "scraps"] as Tab[]).map((key) => {
           const active = tab === key;
           const label =
-            key === "all" ? "전체" : CATEGORY_LABELS[key as CategoryKey];
+            key === "all"
+              ? "전체"
+              : key === "scraps"
+                ? "⭐ 스크랩"
+                : CATEGORY_LABELS[key as CategoryKey];
           const count =
             key === "all"
               ? (data?.items.length ?? 0)
-              : (countByCategory.get(key as CategoryKey) ?? 0);
+              : key === "scraps"
+                ? scraps.length
+                : (countByCategory.get(key as CategoryKey) ?? 0);
           return (
             <button
               key={key}
@@ -163,6 +215,31 @@ export default function InsuranceDashboardPage() {
         </nav>
       )}
 
+      {tab !== "scraps" && (keywords.length > 0 || activeTag) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {keywords.length > 0 && (
+            <button
+              onClick={() => setOnlyKeywords((v) => !v)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                onlyKeywords
+                  ? "bg-teal-700 text-white"
+                  : "border border-teal-300 bg-teal-50 text-teal-700 hover:border-teal-500"
+              }`}
+            >
+              🔔 내 키워드만
+            </button>
+          )}
+          {activeTag && (
+            <button
+              onClick={() => setActiveTag(null)}
+              className="rounded-full bg-gray-800 px-3 py-1 text-xs font-medium text-white"
+            >
+              #{activeTag} ×
+            </button>
+          )}
+        </div>
+      )}
+
       <input
         type="search"
         value={q}
@@ -196,19 +273,31 @@ export default function InsuranceDashboardPage() {
 
       <section className="flex flex-col gap-2" aria-label="피드">
         {items.map((item) => (
-          <FeedCard key={item.id} item={item} showCategory={tab === "all"} />
+          <FeedCard
+            key={item.id}
+            item={item}
+            showCategory={tab === "all" || tab === "scraps"}
+            matched={matchesOf.get(item.id)}
+            scrapped={isScrapped(item.id)}
+            onToggleScrap={toggleScrap}
+            onTagClick={(tag) =>
+              setActiveTag((cur) => (cur === tag ? null : tag))
+            }
+          />
         ))}
-        {data && items.length === 0 && (
+        {(data || tab === "scraps") && items.length === 0 && (
           <p className="py-12 text-center text-sm text-gray-400">
-            조건에 맞는 항목이 없습니다
+            {tab === "scraps"
+              ? "스크랩한 항목이 없습니다 — 카드의 ☆ 버튼으로 저장하세요"
+              : "조건에 맞는 항목이 없습니다"}
           </p>
         )}
       </section>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-center text-xs leading-relaxed text-gray-400">
-        RSS·공개 API·게시판 수집 · 15분 캐시 · 배타적사용권(생보/손보협회) 포함
+        RSS·공개 API·게시판 수집 · 15분 캐시 · 규제 레이더(분쟁조정례·규정변경예고·의안) 포함
         <br />
-        다음 확장 후보: 금감원 분쟁조정례 · 보험업법 의안 추적 · 경쟁사 CSM/VNB 패널
+        다음 확장 후보: 경쟁사 CSM/VNB 패널 · 배타적사용권 아카이브 표 · 유지율(FISIS)
       </footer>
     </main>
   );
