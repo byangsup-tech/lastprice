@@ -114,11 +114,35 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       hoursAgo: 30,
     },
     {
+      sourceName: "금감원 분쟁조정례",
+      title:
+        "[분쟁조정례] 암보험 '직접치료' 해당 여부 — 요양병원 입원비 지급 조정 결정",
+      summary:
+        "말기암 환자의 요양병원 입원이 암의 직접치료에 해당하는지에 대한 조정례. 약관상 직접치료 정의 문구 설계에 참고.",
+      url: "https://www.fss.or.kr",
+      lang: "ko",
+      hoursAgo: 18,
+    },
+    {
+      sourceName: "국회 의안 — 보험",
+      title: "[의안] 보험업법 일부개정법률안 (소비자 설명의무 강화) — ○○○의원 등 12인",
+      url: "https://likms.assembly.go.kr",
+      lang: "ko",
+      hoursAgo: 26,
+    },
+    {
       sourceName: "DART 보험사 공시",
       title: "[DB손해보험] 주요사항보고서 (자기주식 취득 결정)",
       url: "https://dart.fss.or.kr",
       lang: "ko",
       hoursAgo: 33,
+    },
+    {
+      sourceName: "금융위 규정변경예고",
+      title: "[규정변경예고] 보험업감독규정 개정안 — 신지급여력제도(K-ICS) 경과조치 정비",
+      url: "https://www.fsc.go.kr/po1002",
+      lang: "ko",
+      hoursAgo: 40,
     },
   ],
   "new-products": [

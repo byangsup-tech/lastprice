@@ -1,3 +1,4 @@
+import { fetchInsuranceBills, hasAssemblyKey } from "./assembly";
 import { getCached } from "./cache";
 import { productTags } from "./classify";
 import { fetchDartInsurerFilings, hasDartKey } from "./dart";
@@ -90,6 +91,8 @@ async function fetchSource(def: SourceDef): Promise<ParsedFeedItem[]> {
       if (!config) throw new Error(`스크레이퍼 설정 없음: ${def.id}`);
       return scrapeBoard(config);
     }
+    case "assembly":
+      return fetchInsuranceBills();
   }
 }
 
@@ -102,6 +105,9 @@ async function collectSource(
     return { items: [], state: { ...base, status: "no-key", count: 0 } };
   }
   if (def.kind === "dart" && !hasDartKey()) {
+    return { items: [], state: { ...base, status: "no-key", count: 0 } };
+  }
+  if (def.kind === "assembly" && !hasAssemblyKey()) {
     return { items: [], state: { ...base, status: "no-key", count: 0 } };
   }
 

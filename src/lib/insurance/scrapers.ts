@@ -40,6 +40,18 @@ export const SCRAPERS: Record<string, BoardScraperConfig> = {
     hrefIncludes: ["materialView.do"],
     titlePrefix: "[보험연구원] ",
   },
+  // 금융감독원 분쟁조정례 — 약관 문구·부담보 설계의 필수 참고 (eGovFrame 표준 게시판)
+  "fss-dispute": {
+    url: "https://www.fss.or.kr/fss/bbs/B0000203/list.do?menuNo=200686",
+    hrefIncludes: ["view.do"],
+    titlePrefix: "[분쟁조정례] ",
+  },
+  // 금융위원회 규정변경예고 — 감독규정 개정의 선행 신호
+  "fsc-rule-notice": {
+    url: "https://www.fsc.go.kr/po1002",
+    hrefIncludes: ["po1002/"],
+    titlePrefix: "[규정변경예고] ",
+  },
 };
 
 const ANCHOR_RE = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -58,7 +70,14 @@ function parseNearbyDate(html: string, anchorEnd: number): string | undefined {
 export async function scrapeBoard(
   config: BoardScraperConfig,
 ): Promise<ParsedFeedItem[]> {
-  const html = await fetchText(config.url);
+  return parseBoard(config, await fetchText(config.url));
+}
+
+/** 목록 페이지 HTML → 게시글 목록 (순수 함수 — 픽스처 테스트 대상) */
+export function parseBoard(
+  config: BoardScraperConfig,
+  html: string,
+): ParsedFeedItem[] {
   const items: ParsedFeedItem[] = [];
   const seen = new Set<string>();
   const minLen = config.minTitleLength ?? 8;

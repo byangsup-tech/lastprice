@@ -125,6 +125,36 @@ export const SOURCES: SourceDef[] = [
     homepage: "https://dart.fss.or.kr",
     limit: 30,
   },
+  // ── 규제 레이더 (선행 신호 + 약관 리스크) ──
+  {
+    id: "fss-dispute",
+    name: "금감원 분쟁조정례",
+    category: "policy",
+    kind: "scrape",
+    lang: "ko",
+    homepage: "https://www.fss.or.kr",
+    limit: 10,
+  },
+  {
+    id: "fsc-rule-notice",
+    name: "금융위 규정변경예고",
+    category: "policy",
+    kind: "scrape",
+    lang: "ko",
+    homepage: "https://www.fsc.go.kr/po1002",
+    // 스크랩 아이템은 summary가 없어 제목만 매칭됨 — 보험 관련만 통과
+    include: ["보험", "실손", "지급여력", "K-ICS"],
+    limit: 10,
+  },
+  {
+    id: "assembly-bills",
+    name: "국회 의안 — 보험",
+    category: "policy",
+    kind: "assembly",
+    lang: "ko",
+    homepage: "https://likms.assembly.go.kr",
+    limit: 15,
+  },
 
   // ── 신상품 ─────────────────────────────────────────────────
   {
