@@ -47,3 +47,49 @@ src/
 ├── lib/                # 오픈API 클라이언트, 캐시, haversine 반경 필터, 데모 데이터
 └── hooks/              # useDaycares(디바운스 검색), useCompareSelection(비교 선택)
 ```
+
+---
+
+# 🛡️ 보험 상품개발 데스크 (`/insurance`)
+
+보험회사 상품개발 실무자를 위한 정보 대시보드. 국내외 보험 뉴스·정책/공시·신상품·리서치를
+RSS와 공개 API로 자동 수집해 하나의 피드로 보여줍니다. (어린이집 앱과 같은 레포에 공존하며,
+`/insurance` 경로에서 동작)
+
+## 1단계 — 뉴스·공시 스트림 (현재)
+
+| 카테고리 | 소스 | 방식 |
+|---|---|---|
+| 국내 뉴스 | 네이버 뉴스 검색 API, 한국보험신문·보험신보·보험매일 RSS | API 키 / RSS |
+| 해외 뉴스 | Insurance Journal, Reinsurance News, Artemis, Coverager, Insurance Business, Life Insurance International | RSS |
+| 정책·공시 | 금융위원회(정책브리핑 RSS), DART 보험사 공시 | RSS / API 키 |
+| 신상품 | Coverager Product, 네이버 뉴스(신상품·배타적사용권) | RSS / API 키 |
+| 리서치 | McKinsey Insights(보험 필터), 네이버 뉴스(보험연구원) | RSS / API 키 |
+
+- 소스별 15분 서버 캐시(메모리+`/tmp`), 실패 시 만료 캐시 → 예시 데이터 순 폴백
+- 소스별 수집 상태(정상/지연/실패/키 미설정/예시)를 UI 상태 스트립에 표시
+- API 키 없이도 예시 데이터로 UI 확인 가능 (상단 배너로 명시)
+
+### 설정
+
+```bash
+cp .env.local.example .env.local
+# NAVER_CLIENT_ID / NAVER_CLIENT_SECRET — developers.naver.com (무료 일 25,000회)
+# DART_API_KEY — opendart.fss.or.kr (무료 일 20,000건)
+npm run dev
+# http://localhost:3000/insurance
+```
+
+주의: RSS 피드 URL 상당수는 개발망 이그레스 차단으로 실환경 검증 전입니다.
+배포 후 소스 상태 스트립에서 수집 실패 소스를 확인하고 `src/lib/insurance/sources.ts`를 조정하세요.
+
+### 2단계 예정
+
+배타적사용권 게시판(생보·손보협회) 스크레이핑, 보험연구원/보험개발원 리포트,
+위험률 통계 패널(KOSIS·HIRA·질병관리청), 경쟁사 실적공시(CSM/VNB) 패널
+
+```
+src/lib/insurance/     # sources(레지스트리), rss(파서), naver/dart(클라이언트), collect(수집), cache, demo-data
+src/app/insurance/     # 대시보드 UI
+src/app/api/insurance/ # GET /api/insurance/feed
+```
