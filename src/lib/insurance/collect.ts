@@ -1,4 +1,5 @@
 import { getCached } from "./cache";
+import { productTags } from "./classify";
 import { fetchDartInsurerFilings, hasDartKey } from "./dart";
 import { demoItems } from "./demo-data";
 import { hasNaverKeys, searchNaverNews } from "./naver";
@@ -55,6 +56,7 @@ function toFeedItems(
     .slice(0, def.limit ?? DEFAULT_LIMIT)
     .map((p) => {
       const url = normalizeUrl(p.link);
+      const summary = def.noSummary ? undefined : p.summary;
       return {
         id: hashId(url),
         sourceId: def.id,
@@ -62,9 +64,14 @@ function toFeedItems(
         category: def.category,
         title: p.title,
         url,
-        summary: p.summary,
+        summary,
         publishedAt: p.publishedAt ?? new Date(fallbackTime).toISOString(),
         lang: def.lang,
+        market: def.market,
+        tags:
+          def.category === "new-products"
+            ? productTags(`${p.title} ${summary ?? ""}`)
+            : undefined,
       };
     });
 }

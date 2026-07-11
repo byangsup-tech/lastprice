@@ -77,9 +77,11 @@ RSS와 공개 API로 자동 수집해 하나의 피드로 보여줍니다. (어�
 | 국내 뉴스 | 네이버 뉴스 검색 API, 한국보험신문·보험신보·보험매일 RSS | API 키 / RSS |
 | 해외 뉴스 | Insurance Journal, Reinsurance News, Artemis, Coverager, Insurance Business, Life Insurance International | RSS |
 | 정책·공시 | 금융위원회(정책브리핑 RSS), DART 보험사 공시 | RSS / API 키 |
-| 신상품 | Coverager Product, 네이버 뉴스(신상품·배타적사용권) | RSS / API 키 |
+| 신상품 | 배타적사용권(생보/손보협회), 네이버 뉴스(신상품·배타적사용권), Google News 日本(保険 新商品)·中国(保险 新产品), Coverager Product | 스크레이핑 / API 키 / RSS |
 | 리서치 | McKinsey Insights(보험 필터), 네이버 뉴스(보험연구원) | RSS / API 키 |
 
+- 신상품 카테고리: 시장 필터(🇰🇷한국/🇨🇳중국/🇯🇵일본/🌐글로벌) + 상품 유형 자동 태그
+  (암, 건강·의료, 간병·치매, 연금·저축, 펫 등 — 한·중·일·영 키워드 분류)
 - 소스별 15분 서버 캐시(메모리+`/tmp`), 실패 시 만료 캐시 → 예시 데이터 순 폴백
 - 소스별 수집 상태(정상/지연/실패/키 미설정/예시)를 UI 상태 스트립에 표시
 - API 키 없이도 예시 데이터로 UI 확인 가능 (상단 배너로 명시)

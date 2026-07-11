@@ -1,5 +1,5 @@
 import type { FeedItem } from "@/lib/insurance/types";
-import { CATEGORY_LABELS } from "@/lib/insurance/types";
+import { CATEGORY_LABELS, MARKET_LABELS } from "@/lib/insurance/types";
 import { formatRelativeTime } from "@/lib/insurance/format";
 
 interface Props {
@@ -23,6 +23,11 @@ export default function FeedCard({ item, showCategory }: Props) {
             {CATEGORY_LABELS[item.category]}
           </span>
         )}
+        {item.market && (
+          <span className="rounded-full bg-gray-100 px-2 py-0.5">
+            {MARKET_LABELS[item.market]}
+          </span>
+        )}
         {item.demo && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
             예시
@@ -39,6 +44,18 @@ export default function FeedCard({ item, showCategory }: Props) {
         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">
           {item.summary}
         </p>
+      )}
+      {item.tags && item.tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {item.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded bg-teal-50 px-1.5 py-0.5 text-[11px] font-medium text-teal-700"
+            >
+              #{tag}
+            </span>
+          ))}
+        </div>
       )}
     </a>
   );

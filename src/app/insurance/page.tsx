@@ -9,14 +9,19 @@ import { formatRelativeTime } from "@/lib/insurance/format";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
+  MARKETS,
+  MARKET_LABELS,
   type CategoryKey,
+  type Market,
 } from "@/lib/insurance/types";
 
 type Tab = "all" | CategoryKey;
+type MarketFilter = "all" | Market;
 
 export default function InsuranceDashboardPage() {
   const { data, loading, error, reload } = useInsuranceFeed();
   const [tab, setTab] = useState<Tab>("all");
+  const [market, setMarket] = useState<MarketFilter>("all");
   const [q, setQ] = useState("");
 
   const items = useMemo(() => {
@@ -24,12 +29,15 @@ export default function InsuranceDashboardPage() {
     const keyword = q.trim().toLowerCase();
     return data.items.filter((it) => {
       if (tab !== "all" && it.category !== tab) return false;
+      // 시장 필터는 신상품 탭에서만 적용
+      if (tab === "new-products" && market !== "all" && it.market !== market)
+        return false;
       if (!keyword) return true;
-      return `${it.title} ${it.summary ?? ""} ${it.sourceName}`
+      return `${it.title} ${it.summary ?? ""} ${it.sourceName} ${(it.tags ?? []).join(" ")}`
         .toLowerCase()
         .includes(keyword);
     });
-  }, [data, tab, q]);
+  }, [data, tab, market, q]);
 
   const countByCategory = useMemo(() => {
     const counts = new Map<CategoryKey, number>();
@@ -126,11 +134,33 @@ export default function InsuranceDashboardPage() {
         })}
       </nav>
 
+      {tab === "new-products" && (
+        <nav className="flex gap-1.5 overflow-x-auto" aria-label="시장">
+          {(["all", ...MARKETS] as MarketFilter[]).map((key) => {
+            const active = market === key;
+            const label = key === "all" ? "전체 시장" : MARKET_LABELS[key];
+            return (
+              <button
+                key={key}
+                onClick={() => setMarket(key)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "bg-gray-800 text-white"
+                    : "border border-gray-300 bg-white text-gray-600 hover:border-gray-500"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
       <input
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="제목·요약·소스 검색 (예: 실손, CSM, 배타적사용권)"
+        placeholder="제목·요약·태그 검색 (예: 실손, CSM, 간병, 배타적사용권)"
         className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition-colors focus:border-teal-500"
       />
 

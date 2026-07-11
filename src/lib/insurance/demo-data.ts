@@ -1,4 +1,5 @@
-import type { CategoryKey, FeedItem } from "./types";
+import { productTags } from "./classify";
+import type { CategoryKey, FeedItem, Lang, Market } from "./types";
 
 /**
  * 데모(예시) 데이터 — 소스 수집이 전부 실패했거나 API 키가 없을 때 UI 확인용.
@@ -10,8 +11,9 @@ interface DemoSeed {
   title: string;
   summary?: string;
   url: string;
-  lang: "ko" | "en";
+  lang: Lang;
   hoursAgo: number;
+  market?: Market;
 }
 
 const SEEDS: Record<CategoryKey, DemoSeed[]> = {
@@ -126,6 +128,16 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       url: "https://news.naver.com",
       lang: "ko",
       hoursAgo: 4,
+      market: "KR",
+    },
+    {
+      sourceName: "Google News (日本) — 保険 新商品",
+      title:
+        "日本生命、認知症・介護を一体保障する新商品「みらいのカタチ 認知症サポートプラス」を発売",
+      url: "https://news.google.com",
+      lang: "ja",
+      hoursAgo: 6,
+      market: "JP",
     },
     {
       sourceName: "네이버 뉴스 — 신상품",
@@ -133,13 +145,40 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       url: "https://news.naver.com",
       lang: "ko",
       hoursAgo: 8,
+      market: "KR",
+    },
+    {
+      sourceName: "Google News (中国) — 保险 新产品",
+      title: "平安人寿发布重大疾病保险新产品，覆盖120种重疾并扩展轻症保障",
+      url: "https://news.google.com",
+      lang: "zh",
+      hoursAgo: 12,
+      market: "CN",
     },
     {
       sourceName: "Coverager — Product",
-      title: "Japanese Insurer Launches Embedded Travel Cover with Super-App Partner",
+      title:
+        "Japanese Insurer Launches Embedded Travel Cover with Super-App Partner",
       url: "https://coverager.com/category/product/",
       lang: "en",
       hoursAgo: 15,
+      market: "GLOBAL",
+    },
+    {
+      sourceName: "Google News (日本) — 保険 新商品",
+      title: "第一生命、健康増進型医療保険の新商品を10月から販売開始",
+      url: "https://news.google.com",
+      lang: "ja",
+      hoursAgo: 21,
+      market: "JP",
+    },
+    {
+      sourceName: "Google News (中国) — 保险 新产品",
+      title: "中国人寿推出专属商业养老保险新产品，支持灵活缴费",
+      url: "https://news.google.com",
+      lang: "zh",
+      hoursAgo: 26,
+      market: "CN",
     },
     {
       sourceName: "네이버 뉴스 — 신상품",
@@ -147,6 +186,7 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       url: "https://news.naver.com",
       lang: "ko",
       hoursAgo: 28,
+      market: "KR",
     },
   ],
   research: [
@@ -191,6 +231,11 @@ export function demoItems(category: CategoryKey): FeedItem[] {
     summary: seed.summary,
     publishedAt: new Date(now - seed.hoursAgo * 60 * 60 * 1000).toISOString(),
     lang: seed.lang,
+    market: seed.market,
+    tags:
+      category === "new-products"
+        ? productTags(`${seed.title} ${seed.summary ?? ""}`)
+        : undefined,
     demo: true,
   }));
 }

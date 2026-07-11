@@ -20,12 +20,26 @@ export const CATEGORY_LABELS: Record<CategoryKey, string> = {
 
 export type SourceKind = "rss" | "naver-news" | "dart" | "scrape";
 
+export type Lang = "ko" | "en" | "ja" | "zh";
+
+/** 신상품 시장 구분 */
+export type Market = "KR" | "CN" | "JP" | "GLOBAL";
+
+export const MARKETS: Market[] = ["KR", "CN", "JP", "GLOBAL"];
+
+export const MARKET_LABELS: Record<Market, string> = {
+  KR: "🇰🇷 한국",
+  CN: "🇨🇳 중국",
+  JP: "🇯🇵 일본",
+  GLOBAL: "🌐 글로벌",
+};
+
 export interface SourceDef {
   id: string;
   name: string;
   category: CategoryKey;
   kind: SourceKind;
-  lang: "ko" | "en";
+  lang: Lang;
   /** RSS 피드 URL (kind=rss) */
   url?: string;
   /** 네이버 뉴스 검색어 (kind=naver-news) */
@@ -35,6 +49,10 @@ export interface SourceDef {
   homepage?: string;
   /** 소스별 최대 수집 건수 (기본 20) */
   limit?: number;
+  /** 신상품 소스의 시장 구분 */
+  market?: Market;
+  /** 요약이 제목 중복에 불과한 피드(Google News 등)는 버린다 */
+  noSummary?: boolean;
 }
 
 export interface FeedItem {
@@ -47,7 +65,11 @@ export interface FeedItem {
   summary?: string;
   /** ISO 8601 */
   publishedAt: string;
-  lang: "ko" | "en";
+  lang: Lang;
+  /** 신상품 시장 구분 */
+  market?: Market;
+  /** 상품 유형 자동 태그 (신상품 카테고리) */
+  tags?: string[];
   /** 데모(예시) 데이터 여부 — UI에서 명시적으로 표시 */
   demo?: boolean;
 }
