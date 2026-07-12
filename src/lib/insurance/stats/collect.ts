@@ -2,31 +2,42 @@ import { getCached } from "../cache";
 import {
   DEMO_DEATH_CAUSES,
   DEMO_DEATH_CAUSES_YEAR,
+  DEMO_FREQUENT_DISEASES,
   DEMO_LIFE_EXPECTANCY,
+  DEMO_TREASURY_YIELDS,
 } from "./demo";
-import { fetchDeathCauses, fetchLifeExpectancy, hasKosisKey } from "./kosis";
+import { fetchTreasuryYields, hasEcosKey } from "./ecos";
+import {
+  fetchDeathCauses,
+  fetchFrequentDiseases,
+  fetchLifeExpectancy,
+  hasKosisKey,
+} from "./kosis";
 import type {
   StatsBlock,
   StatsResponse,
   StatTileData,
   LifeExpectancyPoint,
   DeathCauseRow,
+  InterestRatePoint,
 } from "./types";
 
-/** 연간 통계라 하루 캐시면 충분 */
+/** 연간(질병·사망)/월간(금리) 통계라 하루 캐시면 충분 */
 const STATS_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface BlockOpts {
+  hasKey: boolean;
+  noKeyNote: string;
+}
 
 async function block<T>(
   key: string,
   fetcher: () => Promise<T>,
   demoData: T,
+  opts: BlockOpts,
 ): Promise<StatsBlock<T>> {
-  if (!hasKosisKey()) {
-    return {
-      status: "demo",
-      note: "KOSIS_API_KEY 미설정 — 근사치 예시",
-      data: demoData,
-    };
+  if (!opts.hasKey) {
+    return { status: "demo", note: opts.noKeyNote, data: demoData };
   }
   try {
     const { data, status } = await getCached(key, fetcher, STATS_TTL_MS);
@@ -43,6 +54,7 @@ async function block<T>(
 function buildTiles(
   life: LifeExpectancyPoint[],
   causes: DeathCauseRow[],
+  rates: InterestRatePoint[],
 ): StatTileData[] {
   const tiles: StatTileData[] = [];
   const latest = life[life.length - 1];
@@ -72,18 +84,54 @@ function buildTiles(
       sub: `10만 명당 ${causes[0].ratePer100k.toFixed(1)}명`,
     });
   }
+  const rateLatest = rates[rates.length - 1];
+  const ratePrev = rates[rates.length - 2];
+  if (rateLatest) {
+    const delta = ratePrev ? rateLatest.y10 - ratePrev.y10 : null;
+    tiles.push({
+      label: `국고채 10년 (${rateLatest.month})`,
+      value: rateLatest.y10.toFixed(2),
+      unit: "%",
+      sub:
+        delta == null
+          ? undefined
+          : `전월 대비 ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(0)}bp`,
+    });
+  }
   return tiles;
 }
 
 export async function collectStats(): Promise<StatsResponse> {
-  const [lifeExpectancy, deathCausesRaw] = await Promise.all([
-    block("stats-life-expectancy", fetchLifeExpectancy, DEMO_LIFE_EXPECTANCY),
-    block(
-      "stats-death-causes",
-      fetchDeathCauses,
-      { year: DEMO_DEATH_CAUSES_YEAR, rows: DEMO_DEATH_CAUSES },
-    ),
-  ]);
+  // 키 존재 여부는 호출 시점에 평가 (모듈 로드 시점 고정 방지)
+  const kosisOpts: BlockOpts = {
+    hasKey: hasKosisKey(),
+    noKeyNote: "KOSIS_API_KEY 미설정 — 근사치 예시",
+  };
+  const [lifeExpectancy, deathCausesRaw, treasuryYields, frequentDiseases] =
+    await Promise.all([
+      block(
+        "stats-life-expectancy",
+        fetchLifeExpectancy,
+        DEMO_LIFE_EXPECTANCY,
+        kosisOpts,
+      ),
+      block(
+        "stats-death-causes",
+        fetchDeathCauses,
+        { year: DEMO_DEATH_CAUSES_YEAR, rows: DEMO_DEATH_CAUSES },
+        kosisOpts,
+      ),
+      block("stats-treasury-yields", fetchTreasuryYields, DEMO_TREASURY_YIELDS, {
+        hasKey: hasEcosKey(),
+        noKeyNote: "ECOS_API_KEY 미설정 — 근사치 예시",
+      }),
+      block(
+        "stats-frequent-diseases",
+        fetchFrequentDiseases,
+        DEMO_FREQUENT_DISEASES,
+        kosisOpts,
+      ),
+    ]);
 
   const deathCauses: StatsBlock<DeathCauseRow[]> = {
     status: deathCausesRaw.status,
@@ -95,7 +143,13 @@ export async function collectStats(): Promise<StatsResponse> {
     lifeExpectancy,
     deathCauses,
     deathCausesYear: deathCausesRaw.data.year,
-    tiles: buildTiles(lifeExpectancy.data, deathCauses.data),
+    treasuryYields,
+    frequentDiseases,
+    tiles: buildTiles(
+      lifeExpectancy.data,
+      deathCauses.data,
+      treasuryYields.data,
+    ),
     generatedAt: new Date().toISOString(),
   };
 }

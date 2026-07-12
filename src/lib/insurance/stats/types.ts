@@ -13,6 +13,21 @@ export interface DeathCauseRow {
   ratePer100k: number;
 }
 
+/** 국고채 월별 금리 (%) — 예정이율·공시이율 검토용 컨텍스트 */
+export interface InterestRatePoint {
+  /** YYYY-MM */
+  month: string;
+  y3: number;
+  y5: number;
+  y10: number;
+}
+
+/** 다빈도 질병 — 연간 진료인원 (명) */
+export interface FrequentDiseaseRow {
+  disease: string;
+  patients: number;
+}
+
 export type StatsBlockStatus = "live" | "stale" | "demo";
 
 export interface StatsBlock<T> {
@@ -35,6 +50,10 @@ export interface StatsResponse {
   /** 최신 연도 사망원인별 사망률 상위 */
   deathCauses: StatsBlock<DeathCauseRow[]>;
   deathCausesYear: number;
+  /** 국고채 3/5/10년 월별 금리 */
+  treasuryYields: StatsBlock<InterestRatePoint[]>;
+  /** 다빈도 질병 진료인원 상위 */
+  frequentDiseases: StatsBlock<FrequentDiseaseRow[]>;
   tiles: StatTileData[];
   generatedAt: string;
 }

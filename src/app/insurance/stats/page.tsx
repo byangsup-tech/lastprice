@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import DeathCauseChart from "@/components/insurance/charts/DeathCauseChart";
+import FrequentDiseaseChart from "@/components/insurance/charts/FrequentDiseaseChart";
+import InterestRateChart from "@/components/insurance/charts/InterestRateChart";
 import LifeExpectancyChart from "@/components/insurance/charts/LifeExpectancyChart";
 import StatTile from "@/components/insurance/StatTile";
 import { useInsuranceStats } from "@/hooks/useInsuranceStats";
@@ -27,7 +29,9 @@ export default function InsuranceStatsPage() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 px-4 py-6">
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-bold text-gray-900">📊 위험률 통계 패널</h1>
-        <p className="text-xs text-gray-500">사망·질병 통계 (KOSIS 연간)</p>
+        <p className="text-xs text-gray-500">
+          사망·질병 통계 (KOSIS) · 시장금리 (ECOS)
+        </p>
         <Link
           href="/insurance"
           className="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-teal-500 hover:text-teal-700"
@@ -36,13 +40,21 @@ export default function InsuranceStatsPage() {
         </Link>
       </header>
 
-      {data?.lifeExpectancy.status === "demo" && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
-          <strong>예시 수치 표시 중:</strong> 공표 통계의 근사치입니다.{" "}
-          <code className="rounded bg-amber-100 px-1">KOSIS_API_KEY</code>를
-          설정하면 국가통계포털 실데이터로 전환됩니다.
-        </div>
-      )}
+      {data &&
+        [
+          data.lifeExpectancy,
+          data.deathCauses,
+          data.treasuryYields,
+          data.frequentDiseases,
+        ].some((b) => b.status === "demo") && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+            <strong>예시 수치 표시 중:</strong> 공표 통계의 근사치입니다.{" "}
+            <code className="rounded bg-amber-100 px-1">KOSIS_API_KEY</code>
+            (사망·질병),{" "}
+            <code className="rounded bg-amber-100 px-1">ECOS_API_KEY</code>
+            (금리)를 설정하면 실데이터로 전환됩니다.
+          </div>
+        )}
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -87,6 +99,19 @@ export default function InsuranceStatsPage() {
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-900">
+                국고채 금리 추이
+              </h2>
+              <span className="text-xs text-gray-400">
+                단위: % (월평균) · 예정이율·공시이율 검토 참고
+              </span>
+              <BlockBadge block={data.treasuryYields} />
+            </div>
+            <InterestRateChart points={data.treasuryYields.data} />
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
                 사망원인 Top 10
               </h2>
               <span className="text-xs text-gray-400">
@@ -97,10 +122,24 @@ export default function InsuranceStatsPage() {
             <DeathCauseChart rows={data.deathCauses.data} />
           </section>
 
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                다빈도 질병 Top 10
+              </h2>
+              <span className="text-xs text-gray-400">
+                연간 진료인원 · 건강·제3보험 담보 참고
+              </span>
+              <BlockBadge block={data.frequentDiseases} />
+            </div>
+            <FrequentDiseaseChart rows={data.frequentDiseases.data} />
+          </section>
+
           <footer className="mt-2 border-t border-gray-200 pt-4 text-center text-xs leading-relaxed text-gray-400">
-            출처: 통계청 생명표·사망원인통계 (KOSIS 국가통계포털) · 연 1회 갱신
+            출처: 통계청 생명표·사망원인통계, HIRA 다빈도질병 (KOSIS) · 한국은행
+            ECOS 시장금리
             <br />
-            확장 예정: 다빈도 질병(HIRA) · 감염병(질병관리청) · 재해·교통사고 통계
+            확장 예정: 감염병(질병관리청) · 재해·교통사고 · 유지율(FISIS)
           </footer>
         </>
       )}

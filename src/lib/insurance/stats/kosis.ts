@@ -1,5 +1,9 @@
 import { fetchJson } from "../http";
-import type { DeathCauseRow, LifeExpectancyPoint } from "./types";
+import type {
+  DeathCauseRow,
+  FrequentDiseaseRow,
+  LifeExpectancyPoint,
+} from "./types";
 
 /**
  * KOSIS 국가통계포털 공유서비스 (통계자료 파라미터 방식).
@@ -17,6 +21,12 @@ const BASE = "https://kosis.kr/openapi/Param/statisticsParameterData.do";
 const LIFE_TABLE = { orgId: "101", tblId: "DT_1B41" };
 /** 사망원인통계 — 사망원인(103항목)별 사망률 (통계청, orgId 101) */
 const DEATH_CAUSE_TABLE = { orgId: "101", tblId: "DT_1B34E01" };
+/**
+ * 다빈도 질병 통계 — 심사평가원(HIRA) KOSIS 수록분 (orgId 354).
+ * tblId는 추정 플레이스홀더 — KOSIS에서 '다빈도 질병' 통계표를 열고
+ * "Open API → 자료 URL 생성"으로 확인 후 교체할 것.
+ */
+const FREQUENT_DISEASE_TABLE = { orgId: "354", tblId: "DT_35001_A063" };
 
 interface KosisRow {
   PRD_DE?: string; // 수록시점 (연도)
@@ -140,4 +150,44 @@ export async function fetchDeathCauses(): Promise<{
     throw new Error("사망원인 응답 파싱 실패 — 테이블 파라미터 확인 필요");
   }
   return { year: latest, rows };
+}
+
+export async function fetchFrequentDiseases(): Promise<FrequentDiseaseRow[]> {
+  const endYear = new Date().getFullYear() - 1;
+  const raw = await fetchKosis({
+    ...FREQUENT_DISEASE_TABLE,
+    itmId: "ALL",
+    objL1: "ALL",
+    startPrdDe: String(endYear - 1),
+    endPrdDe: String(endYear),
+  });
+
+  const years = raw
+    .map((r) => Number(r.PRD_DE))
+    .filter((y) => Number.isFinite(y));
+  const latest = Math.max(...years);
+  const rows = raw
+    .filter(
+      (r) =>
+        Number(r.PRD_DE) === latest &&
+        /환자수|진료인원/.test(r.ITM_NM ?? "") &&
+        !/남|여/.test(r.C2_NM ?? ""),
+    )
+    .map((r) => ({
+      disease: (r.C1_NM ?? "").trim(),
+      patients: Number(r.DT),
+    }))
+    .filter(
+      (r) =>
+        r.disease &&
+        Number.isFinite(r.patients) &&
+        !/전체|합계|총/.test(r.disease),
+    )
+    .sort((a, b) => b.patients - a.patients)
+    .slice(0, 10);
+
+  if (rows.length < 5) {
+    throw new Error("다빈도 질병 응답 파싱 실패 — 테이블 파라미터 확인 필요");
+  }
+  return rows;
 }
