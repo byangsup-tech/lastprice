@@ -262,11 +262,25 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       hoursAgo: 27,
     },
     {
+      sourceName: "WHO 발표",
+      title: "World Health Statistics 2026: global life expectancy recovers to pre-pandemic level",
+      url: "https://www.who.int",
+      lang: "en",
+      hoursAgo: 33,
+    },
+    {
       sourceName: "질병관리청 공표",
       title: "2025 국민건강영양조사 결과 발표 — 30대 남성 비만 유병률 최고치",
       url: "https://www.kdca.go.kr",
       lang: "ko",
       hoursAgo: 41,
+    },
+    {
+      sourceName: "arXiv — 사망률 모형·장수리스크",
+      title: "A Neural Lee-Carter Extension for Cause-of-Death Mortality Forecasting",
+      url: "https://arxiv.org",
+      lang: "en",
+      hoursAgo: 47,
     },
   ],
   research: [

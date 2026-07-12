@@ -378,6 +378,65 @@ export const SOURCES: SourceDef[] = [
     homepage: "https://news.naver.com",
     limit: 10,
   },
+  // 글로벌 (한국 한정 아님 — 전부 키 불필요)
+  {
+    id: "pubmed-global",
+    name: "PubMed — 글로벌 역학·통계",
+    category: "risk-research",
+    kind: "pubmed",
+    lang: "en",
+    // GBD·연례 암통계·기대수명 논문 — 계리 가정의 글로벌 벤치마크
+    query:
+      '"global burden"[Title] OR "cancer statistics"[Title] OR "life expectancy"[Title]',
+    homepage: "https://pubmed.ncbi.nlm.nih.gov",
+    limit: 12,
+  },
+  {
+    id: "who-news",
+    name: "WHO 발표",
+    category: "risk-research",
+    kind: "rss",
+    lang: "en",
+    url: "https://www.who.int/rss-feeds/news-english.xml",
+    homepage: "https://www.who.int",
+    include: [
+      "statistic",
+      "mortality",
+      "life expectancy",
+      "cancer",
+      "diabetes",
+      "burden",
+      "disease",
+    ],
+    limit: 10,
+  },
+  {
+    id: "arxiv-actuarial",
+    name: "arXiv — 사망률 모형·장수리스크",
+    category: "risk-research",
+    kind: "rss",
+    lang: "en",
+    // arXiv API는 Atom 피드를 반환 → 기존 RSS 파서로 처리
+    url:
+      "https://export.arxiv.org/api/query?search_query=" +
+      encodeURIComponent(
+        'abs:"mortality model" OR abs:"longevity risk" OR abs:"mortality improvement"',
+      ) +
+      "&sortBy=submittedDate&sortOrder=descending&max_results=10",
+    homepage: "https://arxiv.org",
+    limit: 10,
+  },
+  {
+    id: "gnews-global-stats",
+    name: "Google News — 글로벌 보건통계",
+    category: "risk-research",
+    kind: "rss",
+    lang: "en",
+    url: `https://news.google.com/rss/search?q=${encodeURIComponent('"life expectancy" OR "mortality rate" OR "cancer statistics"')}&hl=en-US&gl=US&ceid=US:en`,
+    homepage: "https://news.google.com",
+    noSummary: true,
+    limit: 10,
+  },
 ];
 
 export function sourcesByCategory(category: string): SourceDef[] {
