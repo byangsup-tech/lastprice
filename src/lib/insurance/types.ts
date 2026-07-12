@@ -6,6 +6,7 @@ export const CATEGORIES = [
   "policy",
   "new-products",
   "research",
+  "risk-research",
 ] as const;
 
 export type CategoryKey = (typeof CATEGORIES)[number];
@@ -16,9 +17,17 @@ export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   policy: "정책·공시",
   "new-products": "신상품",
   research: "리서치",
+  "risk-research": "위험률·의료",
 };
 
-export type SourceKind = "rss" | "naver-news" | "dart" | "scrape" | "assembly";
+export type SourceKind =
+  | "rss"
+  | "naver-news"
+  | "dart"
+  | "scrape"
+  | "assembly"
+  | "kci"
+  | "pubmed";
 
 export type Lang = "ko" | "en" | "ja" | "zh";
 

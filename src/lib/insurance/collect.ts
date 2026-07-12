@@ -2,6 +2,8 @@ import { fetchInsuranceBills, hasAssemblyKey } from "./assembly";
 import { getCached } from "./cache";
 import { productTags } from "./classify";
 import { fetchDartInsurerFilings, hasDartKey } from "./dart";
+import { fetchKciArticles, hasKciKey } from "./kci";
+import { fetchPubmedArticles } from "./pubmed";
 import { demoItems } from "./demo-data";
 import { hasNaverKeys, searchNaverNews } from "./naver";
 import { fetchText } from "./http";
@@ -93,6 +95,10 @@ async function fetchSource(def: SourceDef): Promise<ParsedFeedItem[]> {
     }
     case "assembly":
       return fetchInsuranceBills();
+    case "kci":
+      return fetchKciArticles(def.query!, def.limit ?? DEFAULT_LIMIT);
+    case "pubmed":
+      return fetchPubmedArticles(def.query!, def.limit ?? DEFAULT_LIMIT);
   }
 }
 
@@ -108,6 +114,9 @@ async function collectSource(
     return { items: [], state: { ...base, status: "no-key", count: 0 } };
   }
   if (def.kind === "assembly" && !hasAssemblyKey()) {
+    return { items: [], state: { ...base, status: "no-key", count: 0 } };
+  }
+  if (def.kind === "kci" && !hasKciKey()) {
     return { items: [], state: { ...base, status: "no-key", count: 0 } };
   }
 

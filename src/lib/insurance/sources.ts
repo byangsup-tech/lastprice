@@ -266,6 +266,118 @@ export const SOURCES: SourceDef[] = [
     query: "보험연구원",
     homepage: "https://www.kiri.or.kr",
   },
+
+  // ── 위험률·의료 (인보험 위험률 개발 원천) ──────────────────
+  // 국내 학술 논문 — KCI 제목 키워드 검색 (보험학회지·계리학연구·리스크관리연구 등)
+  {
+    id: "kci-riskrate",
+    name: "KCI 논문 — 위험률",
+    category: "risk-research",
+    kind: "kci",
+    lang: "ko",
+    query: "위험률",
+    homepage: "https://www.kci.go.kr",
+    limit: 10,
+  },
+  {
+    id: "kci-mortality",
+    name: "KCI 논문 — 사망률",
+    category: "risk-research",
+    kind: "kci",
+    lang: "ko",
+    query: "사망률",
+    homepage: "https://www.kci.go.kr",
+    limit: 10,
+  },
+  {
+    id: "kci-incidence",
+    name: "KCI 논문 — 발생률",
+    category: "risk-research",
+    kind: "kci",
+    lang: "ko",
+    query: "발생률",
+    homepage: "https://www.kci.go.kr",
+    limit: 10,
+  },
+  // 해외 의학 논문 — 한국 대상 발생률·사망률·유병률 (키 불필요)
+  {
+    id: "pubmed-kr",
+    name: "PubMed — 한국 역학",
+    category: "risk-research",
+    kind: "pubmed",
+    lang: "en",
+    query:
+      "(incidence[Title] OR mortality[Title] OR prevalence[Title]) AND (Korea[Title/Abstract] OR Korean[Title/Abstract])",
+    homepage: "https://pubmed.ncbi.nlm.nih.gov",
+    limit: 12,
+  },
+  // 통계 공표 감지 — 정책브리핑 부처별 RSS + 키워드 필터
+  // (부처 코드는 korea.kr/etc/rss.do에서 확인 필요 — 미검증)
+  {
+    id: "kostat-releases",
+    name: "통계청 공표",
+    category: "risk-research",
+    kind: "rss",
+    lang: "ko",
+    url: "https://www.korea.kr/rss/dept_kostat.xml",
+    homepage: "https://kostat.go.kr",
+    include: ["사망원인", "생명표", "기대수명", "사망률", "암등록", "고령자", "장래인구"],
+    limit: 10,
+  },
+  {
+    id: "kdca-releases",
+    name: "질병관리청 공표",
+    category: "risk-research",
+    kind: "rss",
+    lang: "ko",
+    url: "https://www.korea.kr/rss/dept_kdca.xml",
+    homepage: "https://www.kdca.go.kr",
+    include: ["발생률", "유병률", "건강영양", "만성질환", "감염병", "사망"],
+    limit: 10,
+  },
+  // 의료비 영향 이벤트 — 급여화·수가·약가 결정과 신의료기술
+  {
+    id: "mohw-releases",
+    name: "보건복지부 — 급여·수가",
+    category: "risk-research",
+    kind: "rss",
+    lang: "ko",
+    url: "https://www.korea.kr/rss/dept_mohw.xml",
+    homepage: "https://www.mohw.go.kr",
+    include: ["급여", "비급여", "수가", "약가", "건강보험", "신의료기술", "본인부담"],
+    limit: 10,
+  },
+  {
+    id: "naver-medtech",
+    name: "네이버 뉴스 — 신의료기술",
+    category: "risk-research",
+    kind: "naver-news",
+    lang: "ko",
+    query: "신의료기술",
+    homepage: "https://news.naver.com",
+    limit: 10,
+  },
+  {
+    id: "naver-hipc",
+    name: "네이버 뉴스 — 건정심",
+    category: "risk-research",
+    kind: "naver-news",
+    lang: "ko",
+    // 건강보험정책심의위원회 — 급여화·수가 결정의 공식 이벤트 스트림
+    query: "건강보험정책심의위원회",
+    homepage: "https://news.naver.com",
+    limit: 10,
+  },
+  {
+    id: "naver-nonpayment",
+    name: "네이버 뉴스 — 비급여·실손",
+    category: "risk-research",
+    kind: "naver-news",
+    lang: "ko",
+    query: "비급여 실손",
+    homepage: "https://news.naver.com",
+    limit: 10,
+  },
 ];
 
 export function sourcesByCategory(category: string): SourceDef[] {

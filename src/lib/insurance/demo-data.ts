@@ -220,6 +220,55 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       market: "KR",
     },
   ],
+  "risk-research": [
+    {
+      sourceName: "보건복지부 — 급여·수가",
+      title: "건정심, 초음파 검사 급여 확대 및 2027년 수가 인상률 의결",
+      summary:
+        "건강보험정책심의위원회가 상복부 초음파 급여 기준 확대와 유형별 환산지수를 의결했다. 실손 손해율과 급여·비급여 구성에 직접 영향.",
+      url: "https://www.mohw.go.kr",
+      lang: "ko",
+      hoursAgo: 3,
+    },
+    {
+      sourceName: "네이버 뉴스 — 신의료기술",
+      title: "AI 기반 심전도 심부전 조기진단, 신의료기술평가 통과…비급여 진입",
+      summary:
+        "한국보건의료연구원 신의료기술평가를 통과해 의료 현장 사용이 가능해졌다. 진단 급여화 전 단계의 비급여 항목 등장.",
+      url: "https://news.naver.com",
+      lang: "ko",
+      hoursAgo: 7,
+    },
+    {
+      sourceName: "KCI 논문 — 위험률",
+      title: "[논문] 국민건강보험 표본코호트를 이용한 당뇨 유병자 사망률 연구 — 계리학연구",
+      url: "https://www.kci.go.kr",
+      lang: "ko",
+      hoursAgo: 14,
+    },
+    {
+      sourceName: "통계청 공표",
+      title: "2025년 사망원인통계 결과 공표 — 암 사망률 소폭 하락, 치매 사망률 상승 지속",
+      url: "https://kostat.go.kr",
+      lang: "ko",
+      hoursAgo: 20,
+    },
+    {
+      sourceName: "PubMed — 한국 역학",
+      title:
+        "[PubMed] Trends in cancer incidence and survival in Korea, 2000-2023 — Cancer Research and Treatment",
+      url: "https://pubmed.ncbi.nlm.nih.gov",
+      lang: "en",
+      hoursAgo: 27,
+    },
+    {
+      sourceName: "질병관리청 공표",
+      title: "2025 국민건강영양조사 결과 발표 — 30대 남성 비만 유병률 최고치",
+      url: "https://www.kdca.go.kr",
+      lang: "ko",
+      hoursAgo: 41,
+    },
+  ],
   research: [
     {
       sourceName: "네이버 뉴스 — 보험연구원",
