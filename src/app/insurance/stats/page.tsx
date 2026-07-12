@@ -3,8 +3,10 @@
 import Link from "next/link";
 import DeathCauseChart from "@/components/insurance/charts/DeathCauseChart";
 import FrequentDiseaseChart from "@/components/insurance/charts/FrequentDiseaseChart";
+import HBar from "@/components/insurance/charts/HBar";
 import InterestRateChart from "@/components/insurance/charts/InterestRateChart";
 import LifeExpectancyChart from "@/components/insurance/charts/LifeExpectancyChart";
+import MultiLineChart from "@/components/insurance/charts/MultiLineChart";
 import StatTile from "@/components/insurance/StatTile";
 import { useInsuranceStats } from "@/hooks/useInsuranceStats";
 import type { StatsBlock } from "@/lib/insurance/stats/types";
@@ -46,6 +48,9 @@ export default function InsuranceStatsPage() {
           data.deathCauses,
           data.treasuryYields,
           data.frequentDiseases,
+          data.cancerIncidence,
+          data.ageProfile,
+          data.infectious,
         ].some((b) => b.status === "demo") && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
             <strong>예시 수치 표시 중:</strong> 공표 통계의 근사치입니다.{" "}
@@ -99,14 +104,43 @@ export default function InsuranceStatsPage() {
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-900">
-                국고채 금리 추이
+                암 조발생률 추이
               </h2>
               <span className="text-xs text-gray-400">
-                단위: % (월평균) · 예정이율·공시이율 검토 참고
+                인구 10만 명당 (국가암등록통계) · 암보험 위험률 참고
               </span>
-              <BlockBadge block={data.treasuryYields} />
+              <BlockBadge block={data.cancerIncidence} />
             </div>
-            <InterestRateChart points={data.treasuryYields.data} />
+            <MultiLineChart
+              labels={data.cancerIncidence.data.map((p) => String(p.year))}
+              series={[
+                { name: "전체", values: data.cancerIncidence.data.map((p) => p.total) },
+                { name: "남자", values: data.cancerIncidence.data.map((p) => p.male) },
+                { name: "여자", values: data.cancerIncidence.data.map((p) => p.female) },
+              ]}
+              ariaLabel="연도별 암 조발생률 추이 (전체·남자·여자)"
+              format={(v) => v.toFixed(0)}
+            />
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                연령대별 주요 질환 프로파일
+              </h2>
+              <span className="text-xs text-gray-400">
+                연간 진료인원 (만 명) · 발생 곡선 형태 참고
+              </span>
+              <BlockBadge block={data.ageProfile} />
+            </div>
+            <MultiLineChart
+              labels={data.ageProfile.data.ageBands}
+              series={data.ageProfile.data.series}
+              ariaLabel="연령대별 주요 질환 진료인원 곡선"
+              format={(v) => `${v}만`}
+              xTickEvery={1}
+              zeroBased
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -135,11 +169,49 @@ export default function InsuranceStatsPage() {
             <FrequentDiseaseChart rows={data.frequentDiseases.data} />
           </section>
 
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                법정감염병 주간 신고 Top 5
+              </h2>
+              <span className="text-xs text-gray-400">
+                주간 갱신 (질병관리청) · 실손 단기 손해율 신호
+              </span>
+              <BlockBadge block={data.infectious} />
+            </div>
+            <HBar
+              rows={data.infectious.data.map((r) => ({
+                label: r.disease,
+                value: r.weeklyCases,
+              }))}
+              ariaLabel="법정감염병 주간 신고 건수 상위"
+              format={(v) => v.toLocaleString("ko-KR")}
+              titleOf={(row) =>
+                `${row.label}: 주간 ${row.value.toLocaleString("ko-KR")}건 신고`
+              }
+            />
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                국고채 금리 추이
+              </h2>
+              <span className="text-xs text-gray-400">
+                단위: % (월평균) · 예정이율·공시이율 검토 참고
+              </span>
+              <BlockBadge block={data.treasuryYields} />
+            </div>
+            <InterestRateChart points={data.treasuryYields.data} />
+          </section>
+
           <footer className="mt-2 border-t border-gray-200 pt-4 text-center text-xs leading-relaxed text-gray-400">
-            출처: 통계청 생명표·사망원인통계, HIRA 다빈도질병 (KOSIS) · 한국은행
-            ECOS 시장금리
+            출처: 통계청 생명표·사망원인통계, 국가암등록통계, HIRA
+            다빈도질병·연령별 통계, 질병관리청 감염병 (KOSIS·data.go.kr) ·
+            한국은행 ECOS 시장금리
             <br />
-            확장 예정: 감염병(질병관리청) · 재해·교통사고 · 유지율(FISIS)
+            확장 예정: 유지율·경쟁사 경영통계(FISIS) · 비급여 진료비 ·
+            장래인구추계
           </footer>
         </>
       )}

@@ -1,5 +1,6 @@
 import { fetchJson } from "../http";
 import type {
+  CancerIncidencePoint,
   DeathCauseRow,
   FrequentDiseaseRow,
   LifeExpectancyPoint,
@@ -27,6 +28,11 @@ const DEATH_CAUSE_TABLE = { orgId: "101", tblId: "DT_1B34E01" };
  * "Open API → 자료 URL 생성"으로 확인 후 교체할 것.
  */
 const FREQUENT_DISEASE_TABLE = { orgId: "354", tblId: "DT_35001_A063" };
+/**
+ * 국가암등록통계 — 암 조발생률 (국립암센터, orgId 117).
+ * tblId는 추정 플레이스홀더 — KOSIS "Open API → 자료 URL 생성"으로 확인 후 교체.
+ */
+const CANCER_TABLE = { orgId: "117", tblId: "DT_117N_A00023" };
 
 interface KosisRow {
   PRD_DE?: string; // 수록시점 (연도)
@@ -150,6 +156,42 @@ export async function fetchDeathCauses(): Promise<{
     throw new Error("사망원인 응답 파싱 실패 — 테이블 파라미터 확인 필요");
   }
   return { year: latest, rows };
+}
+
+export async function fetchCancerIncidence(): Promise<CancerIncidencePoint[]> {
+  const endYear = new Date().getFullYear() - 2; // 암등록통계는 2년 시차 공표
+  const rows = await fetchKosis({
+    ...CANCER_TABLE,
+    itmId: "ALL",
+    objL1: "ALL",
+    startPrdDe: "2000",
+    endPrdDe: String(endYear),
+  });
+
+  const byYear = new Map<number, Partial<CancerIncidencePoint>>();
+  for (const row of rows) {
+    const year = Number(row.PRD_DE);
+    const value = Number(row.DT);
+    const gender = genderOf(row);
+    if (!Number.isFinite(year) || !Number.isFinite(value) || !gender) continue;
+    // 조발생률(10만 명당)은 100~900 범위 밖이면 다른 항목으로 간주
+    if (value < 100 || value > 900) continue;
+    const point = byYear.get(year) ?? { year };
+    point[gender] = value;
+    byYear.set(year, point);
+  }
+
+  const points = [...byYear.values()]
+    .filter(
+      (p): p is CancerIncidencePoint =>
+        p.total != null && p.male != null && p.female != null,
+    )
+    .sort((a, b) => a.year - b.year);
+
+  if (points.length < 5) {
+    throw new Error("암등록통계 응답 파싱 실패 — 테이블 파라미터 확인 필요");
+  }
+  return points;
 }
 
 export async function fetchFrequentDiseases(): Promise<FrequentDiseaseRow[]> {

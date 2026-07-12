@@ -1,6 +1,9 @@
 import type {
+  AgeProfileData,
+  CancerIncidencePoint,
   DeathCauseRow,
   FrequentDiseaseRow,
+  InfectiousDiseaseRow,
   InterestRatePoint,
   LifeExpectancyPoint,
 } from "./types";
@@ -67,6 +70,44 @@ export const DEMO_TREASURY_YIELDS: InterestRatePoint[] = [
   { month: "2026-04", y3: 2.63, y5: 2.8, y10: 3.08 },
   { month: "2026-05", y3: 2.65, y5: 2.82, y10: 3.1 },
   { month: "2026-06", y3: 2.68, y5: 2.85, y10: 3.12 },
+];
+
+/** 암 조발생률 근사치 — 인구 10만 명당 (국가암등록통계) */
+export const DEMO_CANCER_INCIDENCE: CancerIncidencePoint[] = [
+  { year: 2000, total: 214, male: 232, female: 197 },
+  { year: 2002, total: 238, male: 255, female: 222 },
+  { year: 2004, total: 265, male: 280, female: 251 },
+  { year: 2006, total: 306, male: 315, female: 297 },
+  { year: 2008, total: 350, male: 355, female: 345 },
+  { year: 2010, total: 405, male: 407, female: 403 },
+  { year: 2012, total: 445, male: 442, female: 449 },
+  { year: 2014, total: 427, male: 425, female: 429 },
+  { year: 2016, total: 452, male: 447, female: 457 },
+  { year: 2018, total: 477, male: 476, female: 478 },
+  { year: 2020, total: 482, male: 488, female: 477 },
+  { year: 2022, total: 522, male: 542, female: 502 },
+];
+
+/** 암 5년 상대생존율 근사치 (%) */
+export const DEMO_CANCER_SURVIVAL = { rate: 72.9, period: "2018–2022" };
+
+/** 연령대별 주요 질환 연간 진료인원 근사치 (만 명) — 발생 곡선 형태 참고용 */
+export const DEMO_AGE_PROFILE: AgeProfileData = {
+  ageBands: ["0–9", "10–19", "20–29", "30–39", "40–49", "50–59", "60–69", "70–79", "80+"],
+  series: [
+    { name: "악성신생물(암)", values: [1.1, 1.5, 3.2, 8.5, 19, 37, 52, 41, 18] },
+    { name: "심장 질환", values: [0.4, 0.6, 1.8, 5, 14, 34, 55, 58, 35] },
+    { name: "뇌혈관 질환", values: [0.2, 0.4, 1.1, 3, 9, 22, 38, 45, 30] },
+  ],
+};
+
+/** 법정감염병 주간 신고 건수 근사치 */
+export const DEMO_INFECTIOUS: InfectiousDiseaseRow[] = [
+  { disease: "인플루엔자 (의사환자)", weeklyCases: 12400 },
+  { disease: "코로나19", weeklyCases: 8600 },
+  { disease: "수족구병", weeklyCases: 1520 },
+  { disease: "수두", weeklyCases: 940 },
+  { disease: "백일해", weeklyCases: 610 },
 ];
 
 /** 다빈도 질병 진료인원 근사치 (명, 외래 기준) */

@@ -28,6 +28,28 @@ export interface FrequentDiseaseRow {
   patients: number;
 }
 
+/** 암 조발생률 추이 — 인구 10만 명당 (전체/남/여) */
+export interface CancerIncidencePoint {
+  year: number;
+  total: number;
+  male: number;
+  female: number;
+}
+
+/** 연령대별 주요 질환 진료인원 프로파일 */
+export interface AgeProfileData {
+  /** 예: "0–9", "10–19", …, "80+" */
+  ageBands: string[];
+  /** values는 ageBands와 같은 길이 — 단위: 만 명 (연간 진료인원) */
+  series: { name: string; values: number[] }[];
+}
+
+/** 법정감염병 주간 신고 건수 */
+export interface InfectiousDiseaseRow {
+  disease: string;
+  weeklyCases: number;
+}
+
 export type StatsBlockStatus = "live" | "stale" | "demo";
 
 export interface StatsBlock<T> {
@@ -54,6 +76,12 @@ export interface StatsResponse {
   treasuryYields: StatsBlock<InterestRatePoint[]>;
   /** 다빈도 질병 진료인원 상위 */
   frequentDiseases: StatsBlock<FrequentDiseaseRow[]>;
+  /** 암 조발생률 추이 */
+  cancerIncidence: StatsBlock<CancerIncidencePoint[]>;
+  /** 연령대별 주요 질환 프로파일 */
+  ageProfile: StatsBlock<AgeProfileData>;
+  /** 법정감염병 주간 신고 상위 */
+  infectious: StatsBlock<InfectiousDiseaseRow[]>;
   tiles: StatTileData[];
   generatedAt: string;
 }
