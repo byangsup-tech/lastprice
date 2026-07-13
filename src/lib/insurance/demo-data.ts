@@ -294,6 +294,13 @@ const SEEDS: Record<CategoryKey, DemoSeed[]> = {
       hoursAgo: 11,
     },
     {
+      sourceName: "BCG — Insurance",
+      title: "[BCG] The Next Wave of Insurance Personalization: From Risk Pools to Risk Individuals",
+      url: "https://www.bcg.com/industries/insurance/overview",
+      lang: "en",
+      hoursAgo: 16,
+    },
+    {
       sourceName: "McKinsey Insights",
       title: "Global Insurance Report: Growth Pockets in Health and Protection",
       summary:
