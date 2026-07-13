@@ -105,6 +105,21 @@ export interface SourceState {
 /** 제목 자동 번역 상태 */
 export type TranslationStatus = "on" | "no-key" | "error";
 
+/** 관심 키워드별 검색 수요 트렌드 (Exploding Topics식 카드용) */
+export interface KeywordTrend {
+  keyword: string;
+  /** YYYY-MM */
+  months: string[];
+  values: number[];
+  /** 최근 3개월 vs 직전 3개월 (%) */
+  changePct: number | null;
+}
+
+export interface KeywordTrendsResponse {
+  status: "live" | "stale" | "demo";
+  trends: KeywordTrend[];
+}
+
 export interface FeedResponse {
   items: FeedItem[];
   sources: SourceState[];

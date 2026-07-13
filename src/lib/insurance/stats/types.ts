@@ -72,6 +72,10 @@ export interface StatTileData {
   value: string;
   unit?: string;
   sub?: string;
+  /** 기준 시점 (예: "2023", "2026-06") — 신뢰성 표기 */
+  asOf?: string;
+  /** 미니 추세선 값 (최근 ≤12개) */
+  spark?: number[];
 }
 
 export interface StatsResponse {

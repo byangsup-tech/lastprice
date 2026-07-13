@@ -12,6 +12,49 @@ export function matchedKeywords(item: FeedItem, keywords: string[]): string[] {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** 브리핑 중요도 가중치 — 상품개발 실무 직결도 기준 */
+const CATEGORY_WEIGHT: Record<CategoryKey, number> = {
+  policy: 2,
+  "new-products": 2,
+  "risk-research": 1.5,
+  "kr-news": 1,
+  research: 1,
+  "global-news": 0.5,
+};
+
+/**
+ * 뉴닉식 완독형 브리핑 — 지난 24시간 신규 중 "꼭 볼 n건"을 중요도순으로.
+ * 점수 = 관심 키워드 매칭(+3) + 카테고리 가중치 + 최신성(0~1).
+ */
+export function dailyTopPicks(
+  items: FeedItem[],
+  keywords: string[],
+  now = Date.now(),
+  n = 7,
+): FeedItem[] {
+  const cutoff = now - DAY_MS;
+  return items
+    .filter((item) => {
+      const t = Date.parse(item.publishedAt);
+      return Number.isFinite(t) && t >= cutoff && t <= now + 60_000;
+    })
+    .map((item) => {
+      const t = Date.parse(item.publishedAt);
+      const score =
+        (matchedKeywords(item, keywords).length > 0 ? 3 : 0) +
+        (CATEGORY_WEIGHT[item.category] ?? 0) +
+        (t - cutoff) / DAY_MS;
+      return { item, score };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.item.publishedAt.localeCompare(a.item.publishedAt),
+    )
+    .slice(0, n)
+    .map((s) => s.item);
+}
+
 export interface BriefingEntry {
   category: CategoryKey;
   count: number;

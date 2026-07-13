@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import ChartFooter from "@/components/insurance/ChartFooter";
+import RangeSegment, {
+  type RangeOption,
+} from "@/components/insurance/RangeSegment";
 import DeathCauseChart from "@/components/insurance/charts/DeathCauseChart";
 import FrequentDiseaseChart from "@/components/insurance/charts/FrequentDiseaseChart";
 import HBar from "@/components/insurance/charts/HBar";
@@ -24,8 +29,21 @@ function BlockBadge({ block }: { block: StatsBlock<unknown> }) {
   );
 }
 
+const MONTH_RANGES: RangeOption[] = [
+  { label: "3개월", count: 3 },
+  { label: "12개월", count: 12 },
+  { label: "전체", count: null },
+];
+
+/** 최근 n개만 (null = 전체) */
+function tail<T>(arr: T[], n: number | null): T[] {
+  return n == null ? arr : arr.slice(-n);
+}
+
 export default function InsuranceStatsPage() {
   const { data, loading, error } = useInsuranceStats();
+  const [trendRange, setTrendRange] = useState<number | null>(12);
+  const [rateRange, setRateRange] = useState<number | null>(12);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 px-4 py-6">
@@ -97,15 +115,23 @@ export default function InsuranceStatsPage() {
                 검색 수요 트렌드
               </h2>
               <span className="text-xs text-gray-400">
-                네이버 검색량 상대지수 (최대=100) · 디지털 채널 수요 신호
+                네이버 검색량 상대지수 (최대=100)
               </span>
               <BlockBadge block={data.searchTrends} />
+              <RangeSegment
+                options={MONTH_RANGES}
+                value={trendRange}
+                onChange={setTrendRange}
+              />
             </div>
             <MultiLineChart
-              labels={data.searchTrends.data.months.map((m) =>
-                `${m.slice(2, 4)}.${m.slice(5, 7)}`,
+              labels={tail(data.searchTrends.data.months, trendRange).map(
+                (m) => `${m.slice(2, 4)}.${m.slice(5, 7)}`,
               )}
-              series={data.searchTrends.data.series}
+              series={data.searchTrends.data.series.map((s) => ({
+                name: s.name,
+                values: tail(s.values, trendRange),
+              }))}
               ariaLabel="보험 상품 키워드 월별 검색 수요 추이"
               format={(v) => String(Math.round(v))}
             />
@@ -113,6 +139,17 @@ export default function InsuranceStatsPage() {
               키워드는 <code className="rounded bg-gray-100 px-1">DATALAB_KEYWORDS</code>
               (쉼표 구분, 최대 5개)로 교체 가능
             </p>
+            <ChartFooter
+              source="네이버 데이터랩 검색어트렌드"
+              filename="검색수요트렌드"
+              csvRows={() => [
+                ["월", ...data.searchTrends.data.series.map((s) => s.name)],
+                ...data.searchTrends.data.months.map((m, i) => [
+                  m,
+                  ...data.searchTrends.data.series.map((s) => s.values[i]),
+                ]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -124,6 +161,19 @@ export default function InsuranceStatsPage() {
               <BlockBadge block={data.lifeExpectancy} />
             </div>
             <LifeExpectancyChart points={data.lifeExpectancy.data} />
+            <ChartFooter
+              source="통계청 생명표 (KOSIS)"
+              filename="기대수명추이"
+              csvRows={() => [
+                ["연도", "전체", "남자", "여자"],
+                ...data.lifeExpectancy.data.map((p) => [
+                  p.year,
+                  p.total,
+                  p.male,
+                  p.female,
+                ]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -146,6 +196,19 @@ export default function InsuranceStatsPage() {
               ariaLabel="연도별 암 조발생률 추이 (전체·남자·여자)"
               format={(v) => v.toFixed(0)}
             />
+            <ChartFooter
+              source="국가암등록통계 (KOSIS)"
+              filename="암조발생률추이"
+              csvRows={() => [
+                ["연도", "전체", "남자", "여자"],
+                ...data.cancerIncidence.data.map((p) => [
+                  p.year,
+                  p.total,
+                  p.male,
+                  p.female,
+                ]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -166,6 +229,17 @@ export default function InsuranceStatsPage() {
               xTickEvery={1}
               zeroBased
             />
+            <ChartFooter
+              source="건강보험심사평가원 (공공데이터포털)"
+              filename="연령대별질환프로파일"
+              csvRows={() => [
+                ["연령대", ...data.ageProfile.data.series.map((s) => s.name)],
+                ...data.ageProfile.data.ageBands.map((band, i) => [
+                  band,
+                  ...data.ageProfile.data.series.map((s) => `${s.values[i]}만`),
+                ]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -179,6 +253,14 @@ export default function InsuranceStatsPage() {
               <BlockBadge block={data.deathCauses} />
             </div>
             <DeathCauseChart rows={data.deathCauses.data} />
+            <ChartFooter
+              source="통계청 사망원인통계 (KOSIS)"
+              filename="사망원인Top10"
+              csvRows={() => [
+                ["사망원인", "인구 10만 명당 사망률"],
+                ...data.deathCauses.data.map((r) => [r.cause, r.ratePer100k]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -192,6 +274,17 @@ export default function InsuranceStatsPage() {
               <BlockBadge block={data.frequentDiseases} />
             </div>
             <FrequentDiseaseChart rows={data.frequentDiseases.data} />
+            <ChartFooter
+              source="건강보험심사평가원 다빈도질병 (KOSIS)"
+              filename="다빈도질병Top10"
+              csvRows={() => [
+                ["질병", "연간 진료인원(명)"],
+                ...data.frequentDiseases.data.map((r) => [
+                  r.disease,
+                  r.patients,
+                ]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -215,6 +308,14 @@ export default function InsuranceStatsPage() {
                 `${row.label}: 주간 ${row.value.toLocaleString("ko-KR")}건 신고`
               }
             />
+            <ChartFooter
+              source="질병관리청 감염병 발생현황 (공공데이터포털)"
+              filename="감염병주간Top5"
+              csvRows={() => [
+                ["감염병", "주간 신고 건수"],
+                ...data.infectious.data.map((r) => [r.disease, r.weeklyCases]),
+              ]}
+            />
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -226,8 +327,26 @@ export default function InsuranceStatsPage() {
                 단위: % (월평균) · 예정이율·공시이율 검토 참고
               </span>
               <BlockBadge block={data.treasuryYields} />
+              <RangeSegment
+                options={MONTH_RANGES}
+                value={rateRange}
+                onChange={setRateRange}
+              />
             </div>
-            <InterestRateChart points={data.treasuryYields.data} />
+            <InterestRateChart points={tail(data.treasuryYields.data, rateRange)} />
+            <ChartFooter
+              source="한국은행 ECOS 시장금리 (721Y001)"
+              filename="국고채금리추이"
+              csvRows={() => [
+                ["월", "국고채 3년(%)", "국고채 5년(%)", "국고채 10년(%)"],
+                ...data.treasuryYields.data.map((p) => [
+                  p.month,
+                  p.y3,
+                  p.y5,
+                  p.y10,
+                ]),
+              ]}
+            />
           </section>
 
           <footer className="mt-2 border-t border-gray-200 pt-4 text-center text-xs leading-relaxed text-gray-400">

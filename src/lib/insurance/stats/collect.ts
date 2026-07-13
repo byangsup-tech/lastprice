@@ -4,7 +4,7 @@ import {
   fetchWeeklyInfectious,
   hasDataGoKrKey,
 } from "./datago";
-import { fetchSearchTrends, hasNaverKeys } from "./datalab";
+import { fetchSearchTrends, hasNaverKeys, recentChangePct } from "./datalab";
 import {
   DEMO_AGE_PROFILE,
   DEMO_CANCER_INCIDENCE,
@@ -68,23 +68,25 @@ async function block<T>(
 /** 최근 3개월 평균 vs 그 이전 3개월 평균 — 검색 수요 상승 1위 키워드 */
 function topRisingKeyword(
   trends: SearchTrendData,
-): { name: string; changePct: number } | null {
-  if (trends.months.length < 6) return null;
-  let best: { name: string; changePct: number } | null = null;
+): { name: string; changePct: number; values: number[] } | null {
+  let best: { name: string; changePct: number; values: number[] } | null = null;
   for (const s of trends.series) {
-    const n = s.values.length;
-    const recent = (s.values[n - 1] + s.values[n - 2] + s.values[n - 3]) / 3;
-    const prior = (s.values[n - 4] + s.values[n - 5] + s.values[n - 6]) / 3;
-    if (prior <= 0) continue;
-    const changePct = ((recent - prior) / prior) * 100;
-    if (!best || changePct > best.changePct) best = { name: s.name, changePct };
+    const changePct = recentChangePct(s.values);
+    if (changePct == null) continue;
+    if (!best || changePct > best.changePct) {
+      best = { name: s.name, changePct, values: s.values };
+    }
   }
   return best;
 }
 
+/** 스파크라인용 최근 n개 */
+const tail = (values: number[], n = 12) => values.slice(-n);
+
 function buildTiles(
   life: LifeExpectancyPoint[],
   causes: DeathCauseRow[],
+  causesYear: number,
   rates: InterestRatePoint[],
   cancer: StatsBlock<CancerIncidencePoint[]>,
   trends: SearchTrendData,
@@ -95,24 +97,29 @@ function buildTiles(
   if (latest) {
     const delta = prev ? latest.total - prev.total : null;
     tiles.push({
-      label: `기대수명 (${latest.year})`,
+      label: "기대수명",
+      asOf: String(latest.year),
       value: latest.total.toFixed(1),
       unit: "세",
       sub:
         delta == null
           ? undefined
           : `전기 대비 ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}세`,
+      spark: tail(life.map((p) => p.total)),
     });
     tiles.push({
       label: "남녀 기대수명 차이",
+      asOf: String(latest.year),
       value: (latest.female - latest.male).toFixed(1),
       unit: "년",
       sub: `남 ${latest.male.toFixed(1)} · 여 ${latest.female.toFixed(1)}`,
+      spark: tail(life.map((p) => Number((p.female - p.male).toFixed(2)))),
     });
   }
   if (causes[0]) {
     tiles.push({
       label: "사망원인 1위",
+      asOf: String(causesYear),
       value: causes[0].cause,
       sub: `10만 명당 ${causes[0].ratePer100k.toFixed(1)}명`,
     });
@@ -122,31 +129,37 @@ function buildTiles(
   if (rateLatest) {
     const delta = ratePrev ? rateLatest.y10 - ratePrev.y10 : null;
     tiles.push({
-      label: `국고채 10년 (${rateLatest.month})`,
+      label: "국고채 10년",
+      asOf: rateLatest.month,
       value: rateLatest.y10.toFixed(2),
       unit: "%",
       sub:
         delta == null
           ? undefined
           : `전월 대비 ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(0)}bp`,
+      spark: tail(rates.map((p) => p.y10)),
     });
   }
   const cancerLatest = cancer.data[cancer.data.length - 1];
   if (cancerLatest) {
     tiles.push({
-      label: `암 조발생률 (${cancerLatest.year})`,
+      label: "암 조발생률",
+      asOf: String(cancerLatest.year),
       value: cancerLatest.total.toFixed(0),
       unit: "명/10만",
       // 생존율은 별도 통계표라 우선 근사치로 병기 — 파라미터 검증 후 실데이터 전환
       sub: `5년 상대생존율 ~${DEMO_CANCER_SURVIVAL.rate}% (${DEMO_CANCER_SURVIVAL.period})`,
+      spark: tail(cancer.data.map((p) => p.total)),
     });
   }
   const rising = topRisingKeyword(trends);
   if (rising) {
     tiles.push({
       label: "검색 수요 상승 1위",
+      asOf: "최근 3개월",
       value: rising.name,
-      sub: `최근 3개월 ${rising.changePct >= 0 ? "+" : ""}${rising.changePct.toFixed(0)}% (직전 3개월 대비)`,
+      sub: `${rising.changePct >= 0 ? "+" : ""}${rising.changePct.toFixed(0)}% (직전 3개월 대비)`,
+      spark: tail(rising.values),
     });
   }
   return tiles;
@@ -227,6 +240,7 @@ export async function collectStats(): Promise<StatsResponse> {
     tiles: buildTiles(
       lifeExpectancy.data,
       deathCauses.data,
+      deathCausesRaw.data.year,
       treasuryYields.data,
       cancerIncidence,
       searchTrends.data,

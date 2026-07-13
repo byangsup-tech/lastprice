@@ -5,10 +5,16 @@ import { useMemo, useState } from "react";
 import DailyBriefing from "@/components/insurance/DailyBriefing";
 import FeedCard from "@/components/insurance/FeedCard";
 import KeywordManager from "@/components/insurance/KeywordManager";
+import KeywordTrendCards from "@/components/insurance/KeywordTrendCards";
 import SourceStatusStrip from "@/components/insurance/SourceStatusStrip";
 import { useInsuranceFeed } from "@/hooks/useInsuranceFeed";
 import { useKeywords, useScraps } from "@/hooks/useInsurancePrefs";
-import { briefingByCategory, matchedKeywords } from "@/lib/insurance/daily";
+import { useKeywordTrends } from "@/hooks/useKeywordTrends";
+import {
+  briefingByCategory,
+  dailyTopPicks,
+  matchedKeywords,
+} from "@/lib/insurance/daily";
 import { formatRelativeTime } from "@/lib/insurance/format";
 import {
   CATEGORIES,
@@ -32,6 +38,7 @@ export default function InsuranceDashboardPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const { keywords, add: addKeyword, remove: removeKeyword } = useKeywords();
   const { scraps, has: isScrapped, toggle: toggleScrap } = useScraps();
+  const keywordTrends = useKeywordTrends(keywords);
 
   const matchesOf = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -42,6 +49,14 @@ export default function InsuranceDashboardPage() {
     }
     return map;
   }, [data, keywords]);
+
+  const matchCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const matched of matchesOf.values()) {
+      for (const kw of matched) counts.set(kw, (counts.get(kw) ?? 0) + 1);
+    }
+    return counts;
+  }, [matchesOf]);
 
   const items = useMemo(() => {
     const keyword = q.trim().toLowerCase();
@@ -70,6 +85,10 @@ export default function InsuranceDashboardPage() {
   const briefing = useMemo(
     () => (data ? briefingByCategory(data.items) : []),
     [data],
+  );
+  const briefingPicks = useMemo(
+    () => (data ? dailyTopPicks(data.items, keywords) : []),
+    [data, keywords],
   );
 
   const countByCategory = useMemo(() => {
@@ -146,8 +165,9 @@ export default function InsuranceDashboardPage() {
         </div>
       )}
 
-      {tab !== "scraps" && briefing.length > 0 && (
+      {tab !== "scraps" && briefingPicks.length > 0 && (
         <DailyBriefing
+          picks={briefingPicks}
           entries={briefing}
           onSelectCategory={(category) => setTab(category)}
         />
@@ -158,6 +178,14 @@ export default function InsuranceDashboardPage() {
         onAdd={addKeyword}
         onRemove={removeKeyword}
       />
+
+      {tab !== "scraps" && keywords.length > 0 && keywordTrends && (
+        <KeywordTrendCards
+          data={keywordTrends}
+          matchCounts={matchCounts}
+          onSelectKeyword={(kw) => setQ(kw)}
+        />
+      )}
 
       {data && <SourceStatusStrip sources={data.sources} />}
 

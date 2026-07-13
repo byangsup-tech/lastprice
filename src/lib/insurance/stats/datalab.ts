@@ -48,8 +48,43 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export async function fetchSearchTrends(): Promise<SearchTrendData> {
-  const keywords = datalabKeywords();
+/** 최근 3개월 평균 vs 직전 3개월 평균 변화율(%) — 6개 미만이면 null */
+export function recentChangePct(values: number[]): number | null {
+  const n = values.length;
+  if (n < 6) return null;
+  const recent = (values[n - 1] + values[n - 2] + values[n - 3]) / 3;
+  const prior = (values[n - 4] + values[n - 5] + values[n - 6]) / 3;
+  if (prior <= 0) return null;
+  return ((recent - prior) / prior) * 100;
+}
+
+/**
+ * 키 없는 환경용 결정적(키워드 해시 시드) 합성 트렌드 — UI 확인 전용 예시.
+ * 같은 키워드는 항상 같은 곡선을 만든다.
+ */
+export function syntheticTrend(keyword: string, months = 12): number[] {
+  let h = 2166136261;
+  for (let i = 0; i < keyword.length; i++) {
+    h = ((h ^ keyword.charCodeAt(i)) * 16777619) >>> 0;
+  }
+  const rand = () => {
+    h = (h * 1664525 + 1013904223) >>> 0;
+    return h / 2 ** 32;
+  };
+  let v = 35 + rand() * 30;
+  const drift = (rand() - 0.35) * 4;
+  const values: number[] = [];
+  for (let i = 0; i < months; i++) {
+    v = Math.min(100, Math.max(5, v + drift + (rand() - 0.5) * 8));
+    values.push(Math.round(v));
+  }
+  return values;
+}
+
+export async function fetchSearchTrends(
+  keywordList?: string[],
+): Promise<SearchTrendData> {
+  const keywords = (keywordList ?? datalabKeywords()).slice(0, MAX_GROUPS);
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth() - MONTHS_BACK, 1);
   const body = {
