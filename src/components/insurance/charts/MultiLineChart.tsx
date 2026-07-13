@@ -10,7 +10,8 @@ import { useMemo, useState } from "react";
  * 끝점 직접 라벨, 호버 크로스헤어 툴팁.
  */
 
-const PALETTE = ["#2a78d6", "#1baf7a", "#eda100"];
+/** 검증된 카테고리 팔레트 슬롯 1~5 고정 순서 (validate_palette.js 통과) */
+const PALETTE = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"];
 const INK = "#52514e";
 const MUTED = "#898781";
 const GRID = "#e1e0d9";
@@ -29,7 +30,7 @@ export interface LineSeries {
 interface Props {
   /** x축 카테고리 라벨 (연도·연령대 등) */
   labels: string[];
-  /** 최대 3개 — 팔레트 슬롯 고정 순서 */
+  /** 최대 5개 — 팔레트 슬롯 고정 순서 */
   series: LineSeries[];
   ariaLabel: string;
   /** y축 눈금·툴팁 값 포맷 */

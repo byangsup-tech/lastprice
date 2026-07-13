@@ -4,6 +4,7 @@ import {
   fetchWeeklyInfectious,
   hasDataGoKrKey,
 } from "./datago";
+import { fetchSearchTrends, hasNaverKeys } from "./datalab";
 import {
   DEMO_AGE_PROFILE,
   DEMO_CANCER_INCIDENCE,
@@ -13,6 +14,7 @@ import {
   DEMO_FREQUENT_DISEASES,
   DEMO_INFECTIOUS,
   DEMO_LIFE_EXPECTANCY,
+  DEMO_SEARCH_TRENDS,
   DEMO_TREASURY_YIELDS,
 } from "./demo";
 import { fetchTreasuryYields, hasEcosKey } from "./ecos";
@@ -31,6 +33,7 @@ import type {
   DeathCauseRow,
   InterestRatePoint,
   CancerIncidencePoint,
+  SearchTrendData,
 } from "./types";
 
 /** 연간(질병·사망)/월간(금리) 통계라 하루 캐시면 충분 */
@@ -62,11 +65,29 @@ async function block<T>(
   }
 }
 
+/** 최근 3개월 평균 vs 그 이전 3개월 평균 — 검색 수요 상승 1위 키워드 */
+function topRisingKeyword(
+  trends: SearchTrendData,
+): { name: string; changePct: number } | null {
+  if (trends.months.length < 6) return null;
+  let best: { name: string; changePct: number } | null = null;
+  for (const s of trends.series) {
+    const n = s.values.length;
+    const recent = (s.values[n - 1] + s.values[n - 2] + s.values[n - 3]) / 3;
+    const prior = (s.values[n - 4] + s.values[n - 5] + s.values[n - 6]) / 3;
+    if (prior <= 0) continue;
+    const changePct = ((recent - prior) / prior) * 100;
+    if (!best || changePct > best.changePct) best = { name: s.name, changePct };
+  }
+  return best;
+}
+
 function buildTiles(
   life: LifeExpectancyPoint[],
   causes: DeathCauseRow[],
   rates: InterestRatePoint[],
   cancer: StatsBlock<CancerIncidencePoint[]>,
+  trends: SearchTrendData,
 ): StatTileData[] {
   const tiles: StatTileData[] = [];
   const latest = life[life.length - 1];
@@ -120,6 +141,14 @@ function buildTiles(
       sub: `5년 상대생존율 ~${DEMO_CANCER_SURVIVAL.rate}% (${DEMO_CANCER_SURVIVAL.period})`,
     });
   }
+  const rising = topRisingKeyword(trends);
+  if (rising) {
+    tiles.push({
+      label: "검색 수요 상승 1위",
+      value: rising.name,
+      sub: `최근 3개월 ${rising.changePct >= 0 ? "+" : ""}${rising.changePct.toFixed(0)}% (직전 3개월 대비)`,
+    });
+  }
   return tiles;
 }
 
@@ -141,6 +170,7 @@ export async function collectStats(): Promise<StatsResponse> {
     cancerIncidence,
     ageProfile,
     infectious,
+    searchTrends,
   ] = await Promise.all([
       block(
         "stats-life-expectancy",
@@ -172,6 +202,10 @@ export async function collectStats(): Promise<StatsResponse> {
       ),
       block("stats-age-profile", fetchAgeProfile, DEMO_AGE_PROFILE, dataGoOpts),
       block("stats-infectious", fetchWeeklyInfectious, DEMO_INFECTIOUS, dataGoOpts),
+      block("stats-search-trends", fetchSearchTrends, DEMO_SEARCH_TRENDS, {
+        hasKey: hasNaverKeys(),
+        noKeyNote: "NAVER_CLIENT_ID/SECRET 미설정 — 근사치 예시",
+      }),
     ]);
 
   const deathCauses: StatsBlock<DeathCauseRow[]> = {
@@ -189,11 +223,13 @@ export async function collectStats(): Promise<StatsResponse> {
     cancerIncidence,
     ageProfile,
     infectious,
+    searchTrends,
     tiles: buildTiles(
       lifeExpectancy.data,
       deathCauses.data,
       treasuryYields.data,
       cancerIncidence,
+      searchTrends.data,
     ),
     generatedAt: new Date().toISOString(),
   };

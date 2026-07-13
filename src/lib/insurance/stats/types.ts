@@ -50,6 +50,14 @@ export interface InfectiousDiseaseRow {
   weeklyCases: number;
 }
 
+/** 보험 키워드 검색 수요 트렌드 (네이버 데이터랩, 상대지수 0~100) */
+export interface SearchTrendData {
+  /** YYYY-MM */
+  months: string[];
+  /** values는 months와 같은 길이 */
+  series: { name: string; values: number[] }[];
+}
+
 export type StatsBlockStatus = "live" | "stale" | "demo";
 
 export interface StatsBlock<T> {
@@ -82,6 +90,8 @@ export interface StatsResponse {
   ageProfile: StatsBlock<AgeProfileData>;
   /** 법정감염병 주간 신고 상위 */
   infectious: StatsBlock<InfectiousDiseaseRow[]>;
+  /** 보험 키워드 검색 수요 트렌드 */
+  searchTrends: StatsBlock<SearchTrendData>;
   tiles: StatTileData[];
   generatedAt: string;
 }

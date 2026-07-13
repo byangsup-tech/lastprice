@@ -32,7 +32,7 @@ export default function InsuranceStatsPage() {
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-bold text-gray-900">📊 위험률 통계 패널</h1>
         <p className="text-xs text-gray-500">
-          사망·질병 통계 (KOSIS) · 시장금리 (ECOS)
+          검색 수요 · 사망·질병 통계 · 시장금리
         </p>
         <Link
           href="/insurance"
@@ -51,6 +51,7 @@ export default function InsuranceStatsPage() {
           data.cancerIncidence,
           data.ageProfile,
           data.infectious,
+          data.searchTrends,
         ].some((b) => b.status === "demo") && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
             <strong>예시 수치 표시 중:</strong> 공표 통계의 근사치입니다.{" "}
@@ -89,6 +90,30 @@ export default function InsuranceStatsPage() {
               <StatTile key={tile.label} tile={tile} />
             ))}
           </div>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                검색 수요 트렌드
+              </h2>
+              <span className="text-xs text-gray-400">
+                네이버 검색량 상대지수 (최대=100) · 디지털 채널 수요 신호
+              </span>
+              <BlockBadge block={data.searchTrends} />
+            </div>
+            <MultiLineChart
+              labels={data.searchTrends.data.months.map((m) =>
+                `${m.slice(2, 4)}.${m.slice(5, 7)}`,
+              )}
+              series={data.searchTrends.data.series}
+              ariaLabel="보험 상품 키워드 월별 검색 수요 추이"
+              format={(v) => String(Math.round(v))}
+            />
+            <p className="mt-2 text-xs text-gray-400">
+              키워드는 <code className="rounded bg-gray-100 px-1">DATALAB_KEYWORDS</code>
+              (쉼표 구분, 최대 5개)로 교체 가능
+            </p>
+          </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center gap-2">
