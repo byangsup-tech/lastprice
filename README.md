@@ -47,3 +47,90 @@ src/
 ├── lib/                # 오픈API 클라이언트, 캐시, haversine 반경 필터, 데모 데이터
 └── hooks/              # useDaycares(디바운스 검색), useCompareSelection(비교 선택)
 ```
+
+---
+
+# 🛡️ 보험 상품개발 데스크 (`/insurance`)
+
+## 4단계 — 데일리 도구화 · 규제 레이더 · 통계 확장 (현재)
+
+- **데일리 도구화** (localStorage, 키 불필요): 관심 키워드 등록 → 매칭 카드
+  하이라이트·"내 키워드만" 필터, 스크랩(☆ 토글, 스냅샷 저장, 전용 탭),
+  오늘의 브리핑(24시간 신규 카테고리별 요약), 상품 유형 태그 클릭 필터
+- **규제 레이더** (정책·공시 카테고리): 금감원 분쟁조정례(약관 설계 참고),
+  금융위 규정변경예고(선행 신호), 열린국회정보 API 보험 의안 추적(`ASSEMBLY_API_KEY`)
+- **통계 패널 확장**: 국고채 3/5/10년 금리 차트(`ECOS_API_KEY`, 예정이율 검토 참고),
+  다빈도 질병 Top10(건강·제3보험 담보 참고)
+- **위험률 패널 강화**: 암 조발생률 추이(국가암등록통계, 기존 KOSIS 키) +
+  5년 생존율 타일, 연령대별 주요 질환 발생 곡선(HIRA), 법정감염병 주간 신고
+  Top5(질병관리청) — HIRA·질병관리청은 `DATA_GO_KR_API_KEY` 하나로 커버
+- **검색 수요 트렌드** (디지털 채널 신상품 아이디에이션): 네이버 데이터랩
+  검색어트렌드 API로 보험 키워드 5개(`DATALAB_KEYWORDS`로 교체 가능)의 월별
+  검색량 상대지수 비교 + "검색 수요 상승 1위" 타일. 기존 네이버 키 재사용
+  (앱에 데이터랩 API 추가 등록 필요, 일 1,000회)
+- **위험률·의료 카테고리** (인보험 위험률 개발 원천): KCI 논문(위험률·사망률·발생률,
+  `KCI_API_KEY`), PubMed 한국 역학 논문(키 불필요), 통계청·질병관리청 통계 공표 감지,
+  보건복지부 급여·수가 이벤트(건정심), 신의료기술·비급여 뉴스.
+  글로벌: PubMed(GBD·암통계·기대수명), WHO 발표, arXiv 사망률 모형·장수리스크,
+  Google News 글로벌 보건통계 — 전부 키 불필요
+
+보험회사 상품개발 실무자를 위한 정보 대시보드. 국내외 보험 뉴스·정책/공시·신상품·리서치를
+RSS와 공개 API로 자동 수집해 하나의 피드로 보여줍니다. (어린이집 앱과 같은 레포에 공존하며,
+`/insurance` 경로에서 동작)
+
+## 2단계 — 신상품 신호 + 위험률 통계 패널 (현재)
+
+- **배타적사용권 스크레이퍼**: 생보협회(klia.or.kr)·손보협회(knia.or.kr) 신청·심의결과
+  게시판 → 신상품 카테고리로 유입. 범용 게시판 파서(앵커 패턴 + 날짜 추출) 기반
+- **보험연구원 리포트 스크레이퍼**: kiri.or.kr 자료 게시판 → 리서치 카테고리
+- **`/insurance/stats` 위험률 통계 패널**: KOSIS 연동(무료 키)
+  - 기대수명 추이 라인 차트 (전체/남/여, 호버 크로스헤어 툴팁)
+  - 사망원인 Top 10 가로 막대 (인구 10만 명당 사망률)
+  - 스탯 타일: 기대수명·남녀 차이·사망원인 1위
+  - 키 없으면 근사치 예시로 동작(배지 표시), 24시간 캐시
+
+※ 스크레이퍼 URL·KOSIS 테이블 파라미터는 실환경 검증 전 — 배포 후 소스 상태
+스트립과 `src/lib/insurance/scrapers.ts`, `src/lib/insurance/stats/kosis.ts` 주석 참고.
+
+## 1단계 — 뉴스·공시 스트림
+
+| 카테고리 | 소스 | 방식 |
+|---|---|---|
+| 국내 뉴스 | 네이버 뉴스 검색 API, 한국보험신문·보험신보·보험매일 RSS | API 키 / RSS |
+| 해외 뉴스 | Insurance Journal, Reinsurance News, Artemis, Coverager, Insurance Business, Life Insurance International | RSS |
+| 정책·공시 | 금융위원회(정책브리핑 RSS), DART 보험사 공시 | RSS / API 키 |
+| 신상품 | 배타적사용권(생보/손보협회), 네이버 뉴스(신상품·배타적사용권), Google News 日本(保険 新商品)·中国(保险 新产品), Coverager Product | 스크레이핑 / API 키 / RSS |
+| 리서치 | McKinsey Insights(보험 필터), 네이버 뉴스(보험연구원) | RSS / API 키 |
+
+- 신상품 카테고리: 시장 필터(🇰🇷한국/🇨🇳중국/🇯🇵일본/🌐글로벌) + 상품 유형 자동 태그
+  (암, 건강·의료, 간병·치매, 연금·저축, 펫 등 — 한·중·일·영 키워드 분류)
+- 제목 자동 번역: DeepL API(`DEEPL_API_KEY`, 무료 월 50만 자)로 일본어·중국어 제목을
+  한국어로 번역해 원문과 함께 표시. 아이템별 영구 캐시로 같은 제목은 한 번만 번역.
+  대상 언어는 `TRANSLATE_LANGS`(기본 `ja,zh`, 영어 포함은 `ja,zh,en`)
+- 소스별 15분 서버 캐시(메모리+`/tmp`), 실패 시 만료 캐시 → 예시 데이터 순 폴백
+- 소스별 수집 상태(정상/지연/실패/키 미설정/예시)를 UI 상태 스트립에 표시
+- API 키 없이도 예시 데이터로 UI 확인 가능 (상단 배너로 명시)
+
+### 설정
+
+```bash
+cp .env.local.example .env.local
+# NAVER_CLIENT_ID / NAVER_CLIENT_SECRET — developers.naver.com (무료 일 25,000회)
+# DART_API_KEY — opendart.fss.or.kr (무료 일 20,000건)
+npm run dev
+# http://localhost:3000/insurance
+```
+
+주의: RSS 피드 URL 상당수는 개발망 이그레스 차단으로 실환경 검증 전입니다.
+배포 후 소스 상태 스트립에서 수집 실패 소스를 확인하고 `src/lib/insurance/sources.ts`를 조정하세요.
+
+### 2단계 예정
+
+배타적사용권 게시판(생보·손보협회) 스크레이핑, 보험연구원/보험개발원 리포트,
+위험률 통계 패널(KOSIS·HIRA·질병관리청), 경쟁사 실적공시(CSM/VNB) 패널
+
+```
+src/lib/insurance/     # sources(레지스트리), rss(파서), naver/dart(클라이언트), collect(수집), cache, demo-data
+src/app/insurance/     # 대시보드 UI
+src/app/api/insurance/ # GET /api/insurance/feed
+```
