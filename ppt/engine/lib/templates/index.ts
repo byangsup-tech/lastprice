@@ -16,6 +16,13 @@ import { compareCards } from "./compare-cards";
 import { featureCards } from "./feature-cards";
 import { journey } from "./journey";
 import { cover } from "./cover";
+import { optionTable } from "./option-table";
+import { kpiTiles } from "./kpi-tiles";
+import { roadmap } from "./roadmap";
+import { waterfall } from "./waterfall";
+import { cycle } from "./cycle";
+import { stacked } from "./stacked";
+import { section } from "./section";
 
 export interface FormTemplate {
   id: string;
@@ -42,6 +49,13 @@ export const TEMPLATES: Record<string, FormTemplate> = {
   feature_cards: featureCards,
   journey,
   cover,
+  option_table: optionTable,
+  kpi_tiles: kpiTiles,
+  roadmap,
+  waterfall,
+  cycle,
+  stacked,
+  section,
 };
 
 /** 형태 검사 공용 헬퍼 */

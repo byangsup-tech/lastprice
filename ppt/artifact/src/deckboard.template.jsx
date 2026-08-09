@@ -313,6 +313,112 @@ function SkTextgrid({ p }) {
     </g>);
   })}</g>);
 }
+function SkOptionTable({ p }) {
+  const cr = (p.criteria || []).slice(0, 5), ops = (p.options || []).slice(0, 4);
+  const nameW = 110, colW = (330 - 0) / Math.max(cr.length, 1), x0 = 28, y0 = 66, hh = 26, rh = Math.min(40, 160 / Math.max(ops.length, 1));
+  const mc = (t) => (t && t.startsWith("○") ? C.teal : t && t.startsWith("✕") ? C.err : C.ink);
+  return (<g>
+    <rect x={x0} y={y0} width={nameW + cr.length * colW} height={hh} fill={C.ink} />
+    <text x={x0 + nameW / 2} y={y0 + 17} fontSize="10" fill="#fff" textAnchor="middle" fontWeight="700">대안</text>
+    {cr.map((t, j) => <text key={j} x={x0 + nameW + j * colW + colW / 2} y={y0 + 17} fontSize="10" fill="#fff" textAnchor="middle" fontWeight="700">{trunc(t, 6)}</text>)}
+    {ops.map((o, i) => (<g key={i}>
+      <rect x={x0} y={y0 + hh + i * rh} width={nameW + cr.length * colW} height={rh} fill={o.hi ? C.tealSoft : i % 2 ? C.grayTint : C.card} stroke={C.line} />
+      <text x={x0 + 6} y={y0 + hh + i * rh + rh / 2 + 4} fontSize="10.5" fontWeight="700" fill={o.hi ? C.tealDark : C.ink}>{trunc(o.name, 9)}</text>
+      {(o.cells || []).slice(0, cr.length).map((cell, j) => (
+        <text key={j} x={x0 + nameW + j * colW + colW / 2} y={y0 + hh + i * rh + rh / 2 + 4} fontSize="10.5" fontWeight="700" fill={mc(cell)} textAnchor="middle">{trunc(cell, 5)}</text>
+      ))}
+    </g>))}
+  </g>);
+}
+function SkKpi({ p }) {
+  const tiles = (p.tiles || []).slice(0, 4), n = Math.max(tiles.length, 1), w = (432 - (n - 1) * 12) / n;
+  return (<g>{tiles.map((t, i) => {
+    const x = 24 + i * (w + 12);
+    return (<g key={i}>
+      <rect x={x} y="90" width={w} height="110" rx="8" fill={C.card} stroke={C.line} />
+      <text x={x + 10} y="112" fontSize="10" fontWeight="700" fill={C.gray}>{trunc(t.label, 10)}</text>
+      <text x={x + 10} y="150" fontSize="24" fontWeight="700" fill={C.ink}>{trunc(String(t.value), 8)}</text>
+      {t.delta && <text x={x + 10} y="176" fontSize="11" fontWeight="700" fill={t.tone === "problem" ? C.err : C.teal}>{trunc(t.delta, 12)}</text>}
+    </g>);
+  })}</g>);
+}
+function SkRoadmap({ p }) {
+  const cols = (p.cols || []).slice(0, 6), lanes = (p.lanes || []).slice(0, 4);
+  const nameW = 80, colW = 352 / Math.max(cols.length, 1), x0 = 28, y0 = 70, lh = Math.min(42, 150 / Math.max(lanes.length, 1));
+  return (<g>
+    {cols.map((t, j) => (<g key={j}>
+      <text x={x0 + nameW + j * colW + colW / 2} y={y0} fontSize="10" fontWeight="700" fill={C.gray} textAnchor="middle">{trunc(t, 7)}</text>
+      <line x1={x0 + nameW + j * colW} y1={y0 + 8} x2={x0 + nameW + j * colW} y2={y0 + 8 + lanes.length * lh} stroke={C.line} />
+    </g>))}
+    {lanes.map((l, i) => (<g key={i}>
+      <text x={x0} y={y0 + 8 + i * lh + lh / 2 + 4} fontSize="10.5" fontWeight="700" fill={C.ink}>{trunc(l.name, 8)}</text>
+      {(l.bars || []).map((b, j) => (
+        <rect key={j} x={x0 + nameW + (b.from || 0) * colW + 3} y={y0 + 8 + i * lh + lh / 2 - 8}
+          width={Math.max(((b.to ?? b.from ?? 0) - (b.from || 0) + 1) * colW - 6, 10)} height="16" rx="5" fill={C.tealSoft} stroke={C.teal} />
+      ))}
+    </g>))}
+  </g>);
+}
+function SkWaterfall({ p }) {
+  const start = p.start || { l: "", v: 0 }, deltas = (p.deltas || []).slice(0, 6);
+  const levels = [start.v || 0];
+  deltas.forEach((d) => levels.push(levels[levels.length - 1] + (d.v || 0)));
+  const total = levels[levels.length - 1];
+  const maxV = Math.max(start.v || 0, total, ...levels, 1);
+  const n = deltas.length + 2, slot = 432 / n, bw = Math.min(46, slot * 0.6);
+  const Y = (v) => 210 - (v / maxV) * 120;
+  const bar = (i, v0, v1, color, label) => {
+    const yT = Math.min(Y(v0), Y(v1)), h = Math.max(Math.abs(Y(v1) - Y(v0)), 3), x = 24 + i * slot + (slot - bw) / 2;
+    return (<g key={"b" + i}>
+      <rect x={x} y={yT} width={bw} height={h} fill={color} />
+      <text x={x + bw / 2} y="228" fontSize="9.5" fill={C.ink} textAnchor="middle">{trunc(label, 6)}</text>
+    </g>);
+  };
+  return (<g>
+    <line x1="24" y1="210" x2="456" y2="210" stroke={C.gray} strokeWidth="0.8" />
+    {bar(0, 0, start.v || 0, C.grayFill, start.l)}
+    {deltas.map((d, i) => bar(i + 1, levels[i], levels[i + 1], (d.v || 0) >= 0 ? C.teal : C.gray, d.l))}
+    {bar(n - 1, 0, total, C.ink, (p.end || {}).l || "계")}
+  </g>);
+}
+function SkCycle({ p }) {
+  const st = (p.steps || []).slice(0, 5), n = Math.max(st.length, 1);
+  return (<g>
+    {st.map((s, i) => {
+      const a = (-90 + (360 / n) * i) * (Math.PI / 180);
+      const x = 240 + 150 * Math.cos(a), y = 150 + 72 * Math.sin(a);
+      return (<g key={i}>
+        <rect x={x - 46} y={y - 15} width="92" height="30" rx="7" fill={C.tealSoft} stroke={C.teal} />
+        <text x={x} y={y + 4} fontSize="10.5" fontWeight="700" fill={C.tealDark} textAnchor="middle">{trunc(s, 8)}</text>
+      </g>);
+    })}
+    {p.center && (<g><circle cx="240" cy="150" r="30" fill={C.ink} /><text x="240" y="154" fontSize="11" fontWeight="700" fill="#fff" textAnchor="middle">{trunc(p.center, 5)}</text></g>)}
+  </g>);
+}
+function SkStacked({ p }) {
+  const bars = (p.bars || []).slice(0, 4), n = Math.max(bars.length, 1);
+  const cols = [C.teal, "#7FB8AD", C.grayFill, C.grayTint, "#D8CFA8"];
+  return (<g>
+    <line x1="60" y1="218" x2="420" y2="218" stroke={C.gray} strokeWidth="0.8" />
+    {bars.map((b, i) => {
+      const total = (b.parts || []).reduce((a, x) => a + (x.v || 0), 0) || 1;
+      const x = 80 + i * (300 / n);
+      let y = 218;
+      return (<g key={i}>
+        {(b.parts || []).map((pt, j) => {
+          const h = ((pt.v || 0) / total) * 130;
+          y -= h;
+          return <rect key={j} x={x} y={y} width="44" height={h} fill={cols[j % cols.length]} stroke="#fff" strokeWidth="0.8" />;
+        })}
+        <text x={x + 22} y="234" fontSize="10" fontWeight="700" fill={C.ink} textAnchor="middle">{trunc(b.l, 6)}</text>
+      </g>);
+    })}
+    {(bars[0]?.parts || []).map((pt, j) => (
+      <text key={j} x="72" y={100 + j * 14} fontSize="9" fill={C.gray} textAnchor="end">{trunc(pt.name, 7)}</text>
+    ))}
+  </g>);
+}
+
 function Sketch({ tpl, p, title }) {
   let body = null;
   try {
@@ -326,6 +432,12 @@ function Sketch({ tpl, p, title }) {
     else if (tpl === "bars") body = <SkBars p={p} />;
     else if (tpl === "trend") body = <SkTrend p={p} />;
     else if (tpl === "textgrid") body = <SkTextgrid p={p} />;
+    else if (tpl === "option_table") body = <SkOptionTable p={p} />;
+    else if (tpl === "kpi_tiles") body = <SkKpi p={p} />;
+    else if (tpl === "roadmap") body = <SkRoadmap p={p} />;
+    else if (tpl === "waterfall") body = <SkWaterfall p={p} />;
+    else if (tpl === "cycle") body = <SkCycle p={p} />;
+    else if (tpl === "stacked") body = <SkStacked p={p} />;
     else body = <text x="240" y="150" fontSize="12" fill={C.gray} textAnchor="middle">(스케치 없음 — 실물 추출 폼, 정식 렌더는 빌드에서)</text>;
   } catch {
     body = <text x="240" y="150" fontSize="12" fill={C.err} textAnchor="middle">스케치 렌더 실패 — 파라미터 형태 확인</text>;

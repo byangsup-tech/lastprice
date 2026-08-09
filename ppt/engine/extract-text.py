@@ -70,4 +70,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BrokenPipeError:  # head 등으로 파이프가 먼저 닫힌 경우
+        import os
+        os._exit(0)

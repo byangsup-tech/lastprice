@@ -29,7 +29,7 @@ function collectStrings(v: unknown, path: string, out: { path: string; key: stri
   }
 }
 
-const ROLE_KEYS = new Set(["role", "fn", "side", "seg"]);
+const ROLE_KEYS = new Set(["role", "fn", "tone", "side", "seg"]);
 
 export function validateSpec(spec: DeckSpec, rules: Rules): Finding[] {
   const F: Finding[] = [];
@@ -105,7 +105,7 @@ export function validateSpec(spec: DeckSpec, rules: Rules): Finding[] {
     collectStrings(s.p ?? {}, "p", strings);
     for (const { path, key, value } of strings) {
       if (ROLE_KEYS.has(key)) {
-        if ((key === "role" || key === "fn") && !(value in roles) && !(`${value}` in roles)) {
+        if ((key === "role" || key === "fn" || key === "tone") && !(value in roles)) {
           add("error", s.id, "role", `${path} = "${value}" — colors.json roles에 없음`);
         }
         continue;
