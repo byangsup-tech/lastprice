@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "crawl": "tsx scripts/crawl.ts"
+    "crawl": "tsx scripts/crawl.ts",
+    "deck:validate": "tsx ppt/engine/validate.ts",
+    "deck:build": "tsx ppt/engine/build.ts",
+    "deck:qa": "tsx ppt/engine/render-qa.ts",
+    "deck:text": "python3 ppt/engine/extract-text.py",
+    "artifact:build": "node ppt/artifact/build-artifact.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -26,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "pptxgenjs": "^4.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

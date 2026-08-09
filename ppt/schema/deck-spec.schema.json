@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deck-spec/1",
+  "title": "deck-spec/1 — 덱보드↔빌드 엔진 계약",
+  "description": "아티팩트가 내보내고 엔진이 소비하는 유일한 중간 표현. 색은 role 키만 허용(hex 금지 — 부서 이동 절단면). 검증 구현은 ppt/engine/validate.ts (hand-rolled, 이 문서가 사양).",
+  "type": "object",
+  "required": ["schemaVersion", "meta", "slides"],
+  "properties": {
+    "schemaVersion": { "const": "deck-spec/1" },
+    "meta": {
+      "type": "object",
+      "required": ["title", "deckLabel", "fileName"],
+      "properties": {
+        "title": { "type": "string" },
+        "deckLabel": { "type": "string", "description": "chrome 좌상단 러닝 헤더" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "org": { "type": "string", "description": "rules/org 팩 — 생략 시 active.json" },
+        "archetype": { "type": "string" },
+        "fileName": { "type": "string", "pattern": "\\.pptx$" }
+      }
+    },
+    "definition": { "type": "object", "description": "정의서 추적용 (선택) — q1..q5, priors" },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "template", "p"],
+        "properties": {
+          "id": { "type": "string", "description": "덱 내 유일 — 덱보드 chain 줄 id와 일치시킴" },
+          "template": {
+            "type": "string",
+            "description": "등록 템플릿: layer, hub, before_after, flow, matrix, funnel, bars, trend, textgrid, compare_rows, compare_cards, feature_cards, journey, cover"
+          },
+          "label": { "type": "string", "description": "상단 큰 제목(주제 라벨) — 기능명·주제 명사, 시나리오 헤더 금지" },
+          "pill": { "type": "string", "description": "우상단 캡슐" },
+          "head": {
+            "type": "object",
+            "required": ["runs"],
+            "properties": {
+              "runs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["t"],
+                  "properties": { "t": { "type": "string" }, "hl": { "type": "boolean", "description": "헤드 키워드 형광 — 전 장 시스템" } }
+                }
+              },
+              "sub": { "type": "string", "description": "2번째 헤드메시지 (35자 안팎)" }
+            }
+          },
+          "band": { "type": "string", "description": "본문 밴드 제목 — 서술 라벨 (결론은 헤드 전용, F14)" },
+          "p": {
+            "type": "object",
+            "description": "템플릿별 파라미터 — 필드 계약은 rules/core/relwords.json pSpec + 각 템플릿 minParams. 색은 role 키만(콜라우트 제외 hex 금지). 주석 레이어(callout/emphasisBox)는 차트당 1개, 동시 금지"
+          },
+          "stamps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["mark", "role", "text"],
+              "properties": {
+                "mark": { "type": "string" },
+                "role": { "enum": ["ours", "problem", "legacy"] },
+                "text": { "type": "string" }
+              }
+            }
+          },
+          "assumed": { "type": "boolean", "description": "AI·도구가 채운 가정 수치 포함 — true면 footnote에 '예시'/'가정' 명기 의무 (F8)" },
+          "footnote": { "type": "string" },
+          "notes": { "type": "string", "description": "발표자 노트 — 서사 강등 목적지" }
+        }
+      }
+    },
+    "_notes": { "type": "array", "items": { "type": "string" }, "description": "원본과의 의도적 차이 등 메모" }
+  }
+}

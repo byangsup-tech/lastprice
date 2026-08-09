@@ -1,0 +1,84 @@
+{
+  "_doc": "아키타입 5종 골격 + Q1→아키타입 결정표(룰북 §3, F1) + 구조 결정 우선순위(F2). 조직 불변(core).",
+  "archetypes": [
+    {
+      "id": "decision_request",
+      "name": "의사결정 요청형",
+      "skeleton": [
+        { "label": "요청사항", "seg": "intro" },
+        { "label": "왜 지금", "seg": "intro" },
+        { "label": "대안·평가 기준", "seg": "body" },
+        { "label": "권고·근거", "seg": "body" },
+        { "label": "리스크", "seg": "body" },
+        { "label": "다음 단계", "seg": "outro" }
+      ]
+    },
+    {
+      "id": "concept_proposal",
+      "name": "개념 제안형",
+      "skeleton": [
+        { "label": "현 구조의 한계", "seg": "intro" },
+        { "label": "왜 지금", "seg": "intro" },
+        { "label": "개념 한 장", "seg": "body" },
+        { "label": "작동 메커니즘", "seg": "body" },
+        { "label": "왜 이 시작점", "seg": "body" },
+        { "label": "미결 사항", "seg": "outro" }
+      ]
+    },
+    {
+      "id": "analysis_result",
+      "name": "분석 결과형",
+      "skeleton": [
+        { "label": "답", "seg": "intro" },
+        { "label": "질문·접근", "seg": "intro" },
+        { "label": "발견", "seg": "body" },
+        { "label": "시사점", "seg": "body" },
+        { "label": "한계·다음 검증", "seg": "outro" }
+      ]
+    },
+    {
+      "id": "status_report",
+      "name": "현황 보고형",
+      "skeleton": [
+        { "label": "요약", "seg": "intro" },
+        { "label": "지표", "seg": "body" },
+        { "label": "이슈·대응", "seg": "body" },
+        { "label": "결정 필요 사항", "seg": "outro" }
+      ]
+    },
+    {
+      "id": "info_delivery",
+      "name": "정보 전달형",
+      "skeleton": [
+        { "label": "맥락", "seg": "intro" },
+        { "label": "축 셋", "seg": "body" },
+        { "label": "축별 핵심", "seg": "body" },
+        { "label": "시사점", "seg": "outro" }
+      ]
+    }
+  ],
+  "decisionTable": {
+    "승인": { "default": "decision_request", "branch": null, "alt": null },
+    "방향 확인": {
+      "default": "concept_proposal",
+      "branch": "안건에 미검증 신규 개념이 포함되면 개념 제안형, 기존 안건의 검증 결과가 중심이면 분석 결과형",
+      "alt": "analysis_result"
+    },
+    "이견 해소": {
+      "default": "analysis_result",
+      "branch": "이견의 근원이 사실 판단이면 분석 결과형, 개념 이해 차이면 개념 제안형",
+      "alt": "concept_proposal"
+    },
+    "인지": {
+      "default": "status_report",
+      "branch": "결정 필요 사항이 있으면 현황 보고형, 없으면 정보 전달형",
+      "alt": "info_delivery"
+    }
+  },
+  "q1Criteria": "승인=자원 배분(예산·인력·일정) 결정을 요구하는 자리, 방향 확인=자원 결정 없이 진행 방향 동의만 구하는 자리. 겹치면 '이번 자리에서 결재가 나야 하는가'로 판정",
+  "tiebreaker": "덱의 마지막 장이 무엇이어야 하는가로 판정 — 다음 단계(의사결정) · 미결 사항(개념) · 한계·다음 검증(분석) · 결정 필요 사항(현황) · 시사점(정보)",
+  "structurePriority": {
+    "rule": "골격은 장의 종류와 뼈대(도입·마무리 포함)를 결정하고, Q3 저항 순서는 본론(body) 구간 내부의 배열을 결정한다. 충돌 시 본론 내에서는 저항 순서가 우선하며 골격의 intro·outro는 고정한다.",
+    "merge": "골격 칸 수가 체인 줄 수 제한을 넘으면 body 칸을 병합하되 intro·outro는 유지"
+  }
+}

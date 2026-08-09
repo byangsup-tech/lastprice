@@ -1,0 +1,60 @@
+{
+  "_doc": "구멍 유형학 6종 + 처분 3종 + 종료 조건(룰북 §7, F13). 조직 불변(core).",
+  "types": [
+    {
+      "id": 1,
+      "key": "frame_conflict",
+      "name": "프레임 충돌",
+      "test": "이 방이 본 프레임 중 이 주장을 기각하는 것은?",
+      "repair": "프레임을 부정하지 말고 확장 — '그 프레임이 맞다, 그런데 ~한 예외가 존재하고 그것이 근거다'",
+      "priorDependent": true
+    },
+    {
+      "id": 2,
+      "key": "hidden_premise",
+      "name": "암묵 전제",
+      "test": "이 링크가 참이려면 무엇이 참이어야 하고, 그건 어디서 증명되나?",
+      "repair": "전제를 명시하고 증명 위치(장·구두·후속 검토)를 지정",
+      "priorDependent": false
+    },
+    {
+      "id": 3,
+      "key": "leap",
+      "name": "비약",
+      "test": "헤드 N→N+1 사이 독자가 메워야 하는 추론 칸이 있는가?",
+      "repair": "중간 칸을 채우는 장 추가 또는 인접 헤드 보강",
+      "priorDependent": false
+    },
+    {
+      "id": 4,
+      "key": "absolute",
+      "name": "무방비 절대어",
+      "test": "'유일한·최초·모두' 등 반례 하나에 무너지는 표현이 있는가?",
+      "repair": "한정어 부여 또는 반례 선제 처리",
+      "priorDependent": false
+    },
+    {
+      "id": 5,
+      "key": "internal_conflict",
+      "name": "내부 충돌",
+      "test": "한 장의 주장이 다른 장의 주장·증거를 약화시키는가?",
+      "repair": "층위 구분(구조 vs 절차 등) 또는 주장 조정",
+      "priorDependent": false
+    },
+    {
+      "id": 6,
+      "key": "stake_unaddressed",
+      "name": "이해관계 미처리",
+      "test": "이 안이 통과되면 방 안의 누가 무엇을 잃는데 체인이 다루지 않는가?",
+      "repair": "상실 처리(상한·전환 계획 등)를 덱 또는 구두 대응으로 명시",
+      "priorDependent": true
+    }
+  ],
+  "dispositions": [
+    { "id": "apply", "name": "반영", "requires": [] },
+    { "id": "verbal", "name": "구두 대응", "requires": ["memo"], "memoLabel": "예상 문답 메모" },
+    { "id": "reject", "name": "기각", "requires": ["reason"], "reasonLabel": "기각 사유" }
+  ],
+  "termination": "6유형 각각의 테스트 질문을 체인의 전 링크(N→N+1)와 전 장에 1회 이상 적용하고, 한 바퀴에서 신규 검출이 0이면 종료",
+  "priorNote": "②~⑤는 체인 텍스트만으로 검출 가능. ①·⑥은 입력된 프라이어 범위에서만 검출 — 프라이어가 비면 검사 대신 프라이어 질문을 먼저 반환"
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "deck-spec/1",
+  "_notes": ["음성 테스트 2 — 색 hex 직접 기입, 연속 동일 템플릿, 영문 섹션 라벨. validate가 에러 3건 이상 검출해야 함"],
+  "meta": { "title": "테스트", "deckLabel": "테스트 덱", "fileName": "neg-2.pptx" },
+  "slides": [
+    {
+      "id": "n1",
+      "template": "flow",
+      "label": "프로세스",
+      "band": "EXHIBIT 1",
+      "head": { "runs": [{ "t": "가입부터 인하까지 네 단계로 진행됨" }] },
+      "p": { "steps": ["가입", "무사고 입증", "등급 하향", "보험료 인하"], "hi": 3 }
+    },
+    {
+      "id": "n2",
+      "template": "flow",
+      "label": "프로세스 상세",
+      "head": { "runs": [{ "t": "각 단계는 자동으로 판정됨" }] },
+      "p": { "steps": ["신청", "심사", "1743E0", "완료"] }
+    }
+  ]
+}

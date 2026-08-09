@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "deck-spec/1",
+  "_notes": ["음성 테스트 3 — assumed 각주 누락, 주석 레이어 동시 사용, 과장 수식어. validate가 에러 3건 이상 검출해야 함"],
+  "meta": { "title": "테스트", "deckLabel": "테스트 덱", "fileName": "neg-3.pptx" },
+  "slides": [
+    {
+      "id": "n1",
+      "template": "bars",
+      "label": "혁신적 채널 실적",
+      "head": { "runs": [{ "t": "GA 채널 실적이 타 채널보다 " }, { "t": "2배 이상 큼", "hl": true }] },
+      "p": {
+        "unit": "억원",
+        "items": [
+          { "l": "GA", "v": 90 },
+          { "l": "전속", "v": 40 },
+          { "l": "TM", "v": 48 },
+          { "l": "방카", "v": 34 }
+        ],
+        "hi": 0,
+        "callout": { "text": "GA 집중의 근거 구간" },
+        "emphasisBox": { "at": 0 }
+      },
+      "assumed": true
+    }
+  ]
+}

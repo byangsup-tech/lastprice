@@ -1,0 +1,14 @@
+{
+  "_doc": "새 조직 팩 스캐폴드 — role 키는 유지하고 hex 값만 새 조직 팔레트로 교체. role 키를 바꾸면 엔진 템플릿과 어긋난다.",
+  "font": "맑은 고딕",
+  "roles": {
+    "structure": "", "ours": "", "oursBg": "", "problem": "", "problemBg": "",
+    "legacy": "", "legacyBar": "", "legacyDark": "", "hl": "",
+    "fn1": "", "fn1Bg": "", "fn1Text": "", "fn2": "", "fn2Bg": "", "fn2Text": "",
+    "ink": "", "bg": "", "paper": "FFFFFF", "chartBg": "", "line": "", "cellBg": "", "mut": "",
+    "calloutBg": "", "calloutBorder": "", "coverSub": "", "coverCredit": ""
+  },
+  "semantics": {
+    "structure": "", "ours": "", "problem": "", "legacy": "", "hl": "", "fn1": "", "fn2": ""
+  }
+}

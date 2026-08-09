@@ -1,0 +1,135 @@
+{
+  "_doc": "폼 스터디 관계어 사전(룰북 §8). 조직 불변(core). pSpec은 아티팩트·엔진의 형태 검증(F9)과 프롬프트 조립에 공통 사용.",
+  "templates": [
+    {
+      "tpl": "layer",
+      "name": "레이어",
+      "triggers": ["받친다", "토대", "전제", "기반"],
+      "quant": false,
+      "pSpec": { "base": { "type": "string", "req": true }, "items": { "type": "string[]", "min": 3, "max": 4, "req": true } }
+    },
+    {
+      "tpl": "hub",
+      "name": "허브",
+      "triggers": ["구동", "공급", "중심", "연결"],
+      "quant": false,
+      "pSpec": { "center": { "type": "string", "req": true, "maxLen": 5 }, "spokes": { "type": "string[]", "min": 3, "max": 5, "req": true } }
+    },
+    {
+      "tpl": "before_after",
+      "name": "전·후",
+      "triggers": ["바뀐다", "풀리면", "활성화", "전환"],
+      "quant": false,
+      "pSpec": { "before": { "type": "string", "req": true }, "after": { "type": "string", "req": true }, "trigger": { "type": "string", "req": true, "maxLen": 7 }, "items": { "type": "string[]", "min": 3, "max": 4, "req": true } }
+    },
+    {
+      "tpl": "flow",
+      "name": "플로우",
+      "triggers": ["단계", "순서", "프로세스"],
+      "quant": false,
+      "pSpec": { "steps": { "type": "string[]", "min": 3, "max": 5, "req": true }, "hi": { "type": "int", "req": false } }
+    },
+    {
+      "tpl": "matrix",
+      "name": "2×2",
+      "triggers": ["두 축", "갈린다", "포지셔닝"],
+      "quant": false,
+      "pSpec": { "xl": { "type": "string", "req": true }, "xr": { "type": "string", "req": true }, "yb": { "type": "string", "req": true }, "yt": { "type": "string", "req": true }, "q": { "type": "string[]", "min": 4, "max": 4, "req": true }, "hi": { "type": "int", "req": false } }
+    },
+    {
+      "tpl": "funnel",
+      "name": "퍼널",
+      "triggers": ["좁아진다", "걸러진다", "전환율"],
+      "quant": false,
+      "pSpec": { "stages": { "type": "string[]", "min": 3, "max": 4, "req": true } }
+    },
+    {
+      "tpl": "bars",
+      "name": "막대 비교",
+      "triggers": ["~보다 크다", "격차", "순위"],
+      "quant": true,
+      "pSpec": { "items": { "type": "lv[]", "min": 2, "max": 6, "req": true }, "hi": { "type": "int", "req": false }, "unit": { "type": "string", "req": false } }
+    },
+    {
+      "tpl": "trend",
+      "name": "추세",
+      "triggers": ["커진다", "줄어든다", "N년째"],
+      "quant": true,
+      "pSpec": { "pts": { "type": "lv[]", "min": 4, "max": 6, "req": true }, "note": { "type": "string", "req": false, "maxLen": 10 } }
+    },
+    {
+      "tpl": "textgrid",
+      "name": "구조화 텍스트",
+      "triggers": ["원칙", "기준", "정의", "요청"],
+      "quant": false,
+      "pSpec": { "items": { "type": "ntd[]", "min": 3, "max": 4, "req": true } }
+    }
+  ],
+  "derived": [
+    {
+      "tpl": "compare_rows",
+      "name": "비교 행 대비",
+      "note": "행 태그 + 기존/당사 셀 대비 — 전·후의 병렬 확장형 (실물 S5에서 추출)",
+      "pSpec": {
+        "leftTitle": { "type": "string", "req": true },
+        "rightTitle": { "type": "string", "req": true },
+        "rows": { "type": "compareRow[]", "min": 2, "max": 3, "req": true },
+        "leftSummary": { "type": "string", "req": false },
+        "rightSummary": { "type": "string", "req": false }
+      }
+    },
+    {
+      "tpl": "compare_cards",
+      "name": "비교 카드 그리드",
+      "note": "좌우 2열 카드 대비 + 하단 검토 박스 (실물 S6에서 추출) — compare_rows와 연속 사용 가능한 변주형",
+      "pSpec": {
+        "leftTitle": { "type": "string", "req": true },
+        "rightTitle": { "type": "string", "req": true },
+        "cards": { "type": "sideCard[]", "min": 2, "max": 6, "req": true },
+        "darkRight": { "type": "bool", "req": false },
+        "reviewBox": { "type": "titleText", "req": false }
+      }
+    },
+    {
+      "tpl": "feature_cards",
+      "name": "개요 카드",
+      "note": "기능 카드 2~3장 + 결합 스트립 + 대비 문장 (실물 S2에서 추출)",
+      "pSpec": {
+        "cards": { "type": "featureCard[]", "min": 2, "max": 3, "req": true },
+        "joiner": { "type": "string", "req": false },
+        "strip": { "type": "leadText", "req": false },
+        "compareLine": { "type": "string", "req": false }
+      }
+    },
+    {
+      "tpl": "journey",
+      "name": "가입자 여정",
+      "note": "보장 밴드 계단 + 타임라인 노드 (실물 S4에서 추출) — 시간 축 위 상태 변화",
+      "pSpec": {
+        "caption": { "type": "string", "req": false },
+        "bands": { "type": "journeyBand[]", "min": 1, "max": 4, "req": true },
+        "nodes": { "type": "journeyNode[]", "min": 2, "max": 6, "req": true },
+        "strip": { "type": "string", "req": false }
+      }
+    },
+    {
+      "tpl": "cover",
+      "name": "표지",
+      "pSpec": { "eyebrow": { "type": "string", "req": false }, "title": { "type": "string", "req": true }, "subtitle": { "type": "string", "req": false }, "credit": { "type": "string", "req": false } }
+    }
+  ],
+  "typeDefs": {
+    "lv": "{ l: string, v: number }",
+    "ntd": "{ n: string, t: string, d: string }",
+    "compareRow": "{ tag, tagSub?, left: {mark,main,sub?}, right: {mark,main,sub?} }",
+    "sideCard": "{ side: 'left'|'right', mark, main, sub? }",
+    "featureCard": "{ title, lines[], chip?, fn?: 'fn1'|'fn2' }",
+    "leadText": "{ lead, text }",
+    "titleText": "{ title, text }",
+    "journeyBand": "{ text, role, from(노드 인덱스) }",
+    "journeyNode": "{ age, ev, sub?, chip?, role, pos?(0..1) }"
+  },
+  "quantRule": "정량 판정은 메시지 문장 기준 — 수치·비교·추세가 문장에 명시돼야 차트형(bars/trend) 의무, 정량 함의만 있으면 도해 허용",
+  "textAnswer": "글이 정답인 메시지 존재(정의·원칙·요청). 실패는 글이 아니라 문단으로 쓰는 것 — textgrid가 제3의 정당한 형태",
+  "pickRule": "메시지에서 어느 단어가 싸움의 핵심인가"
+}

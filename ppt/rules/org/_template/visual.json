@@ -1,0 +1,13 @@
+{
+  "_doc": "새 조직 팩 스캐폴드 — 새 조직 벤치마크에서 시각 파라미터를 재추출해 채움. 판정 기준·상한 수치가 조직마다 다를 수 있는 항목들.",
+  "conventions": {
+    "repeat": [],
+    "formVariation": { "rule": "", "scope": "본문 장(표지·목차·부록 제외)", "primaryTest": "본문 영역 템플릿 id 동일 여부" }
+  },
+  "emptyFrame": "",
+  "numbersPerClaim": { "required": true, "assumedMark": "(예시)", "assumedFootnote": "", "aiPropagation": "AI·도구 생성 수치는 assumed 플래그 의무" },
+  "accentLimit": { "chromaticPerSlide": 1, "note": "" },
+  "hlSystem": "",
+  "annotationLayer": { "maxPerChart": 1, "kinds": ["callout", "emphasisBox"], "simultaneous": false },
+  "chart": { "axisUnit": "", "directLabel": "", "gridlines": "", "titleRule": "" }
+}

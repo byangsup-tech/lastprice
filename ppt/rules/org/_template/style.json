@@ -1,0 +1,18 @@
+{
+  "_doc": "새 조직 팩 스캐폴드 — 값을 채워 rules/org/<팩이름>/style.json으로 저장. 각 필드의 의미는 default 팩과 룰북 §5 참조.",
+  "packName": "",
+  "packDesc": "어느 조직·부서, 어떤 벤치마크 몇 건에서 추출했는지",
+  "endings": ["함", "됨", "임"],
+  "headline": { "maxLen": 35, "tolerance": 5, "maxPerSlide": 2 },
+  "titleRule": "",
+  "forbidden": {
+    "parallelSlogan": { "desc": "", "patterns": [] },
+    "metaphor": { "desc": "", "words": [] },
+    "customerQuote": { "desc": "" },
+    "englishLabels": { "desc": "", "words": [] },
+    "hype": { "desc": "", "words": [] }
+  },
+  "sourcing": "",
+  "symbols": { "allow": [], "ban": [], "banLinePrefix": [], "minusRule": "" },
+  "narrative": ""
+}

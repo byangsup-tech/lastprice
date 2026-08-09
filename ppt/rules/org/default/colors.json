@@ -1,0 +1,41 @@
+{
+  "_doc": "역할색 정본(룰북 §6, V3 픽스로 실물 기준 재작성) — 조직 팩. deck-spec에는 hex 금지, 이 role 키만 사용.",
+  "font": "맑은 고딕",
+  "roles": {
+    "structure": "0F1E5A",
+    "ours": "1743E0",
+    "oursBg": "E9EFFD",
+    "problem": "C6392E",
+    "problemBg": "FDF1EF",
+    "legacy": "6B7280",
+    "legacyBar": "C3C9D4",
+    "legacyDark": "5A6472",
+    "hl": "FFF04D",
+    "fn1": "4FC8DF",
+    "fn1Bg": "DFF6FA",
+    "fn1Text": "0E6D80",
+    "fn2": "7C86F5",
+    "fn2Bg": "ECEEFD",
+    "fn2Text": "3A44B5",
+    "ink": "1F2A44",
+    "bg": "F2F4F7",
+    "paper": "FFFFFF",
+    "chartBg": "FBFCFE",
+    "line": "D8DDE6",
+    "cellBg": "ECEFF3",
+    "mut": "8A93A4",
+    "calloutBg": "FFF9D6",
+    "calloutBorder": "E7C93C",
+    "coverSub": "C7D2DC",
+    "coverCredit": "8FA0C4"
+  },
+  "semantics": {
+    "structure": "네이비 = 구조 (제목·밴드·스트립)",
+    "ours": "파랑 = 당사·긍정",
+    "problem": "빨강 = 기존의 문제·✕ — 당사 측 강조에 사용 금지 (V1 픽스)",
+    "legacy": "회색 = 기존·중립",
+    "hl": "형광노랑 = 헤드 키워드 (전 장 시스템)",
+    "fn1": "기능 구분색 1(시안) = 리밸런싱·보험료 인하 계열 전용 — 전 장 동일 대상만 지목",
+    "fn2": "기능 구분색 2(라벤더) = 담보 추가 계열 전용"
+  }
+}
