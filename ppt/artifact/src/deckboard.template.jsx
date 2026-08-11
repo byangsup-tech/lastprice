@@ -19,6 +19,13 @@ const PROMPTS = /*__PROMPTS__*/ null /*__END_PROMPTS__*/;
 const MODEL = "claude-sonnet-4-6"; // 모델 교체는 이 상수 1곳 (구현 시점 재확인)
 const DECKS_KEY = "deckboard:decks:v2";
 const RUNS_KEY = "formstudy:runs:v2";
+const RUNS_V1_KEY = "formstudy:runs:v1"; // 구 폼 스터디 아티팩트 기록 — v2가 비었을 때 1회 이월
+const MIGRATE_CAP = 250; // 이월 상한 — 신규 기록 여유분을 남겨 첫 확정에서 300건 절삭이 터지지 않게 함
+const CDN_SRCS = [
+  "https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/4.0.1/pptxgen.bundle.js",
+  "https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js",
+  "https://unpkg.com/pptxgenjs@4.0.1/dist/pptxgen.bundle.js",
+];
 
 // ── UI 팔레트 (도구 자체의 색 — 덱 역할색과 무관) ──
 const C = {
@@ -67,6 +74,10 @@ function lintText(text) {
   for (const w of st.forbidden.englishLabels.words) if (t.toUpperCase().includes(w)) issues.push({ sev: "error", msg: `영문 라벨 "${w}"` });
   for (const p of st.forbidden.parallelSlogan.patterns) if (new RegExp(p).test(t)) issues.push({ sev: "error", msg: "대구 슬로건" });
   for (const s of st.symbols.ban) if (t.includes(s)) issues.push({ sev: "error", msg: `금지 기호 "${s}"` });
+  // 행두 접두 금지 — 엔진 textcheck.ts와 판정을 맞춘다 (없으면 덱보드는 통과시키고 deck:validate가 떨어뜨림)
+  for (const p of st.symbols.banLinePrefix || []) {
+    if (text.split("\n").some((ln) => ln.trimStart().startsWith(p))) issues.push({ sev: "error", msg: `줄머리 "${p.trim()}" 금지` });
+  }
   return issues;
 }
 function lintHead(text, isPrimary) {
@@ -78,6 +89,13 @@ function lintHead(text, isPrimary) {
   if ((text || "").length > limit) issues.push({ sev: "warn", msg: `${text.length}자 > ${st.headline.maxLen}±${st.headline.tolerance}` });
   return issues;
 }
+
+// ── 템플릿 분류 ──
+// AI 후보는 관계어 사전(templates)에서만 — 파생·구조 장은 수동 경로 전용 (프롬프트에도 같은 제약이 주입돼 있다)
+const AI_TPLS = new Set(RULES.relwords.templates.map((t) => t.tpl));
+// 구조 장(표지·간지)은 본문 장의 폼이 아니다 — 체인 줄에 붙으면 엔진이 chrome·head를 건너뛰어 헤드가 사라진다
+const MANUAL_TPLS = [...RULES.relwords.templates, ...RULES.relwords.derived.filter((d) => !d.structural)];
+const tplName = (tpl) => (MANUAL_TPLS.find((t) => t.tpl === tpl) || {}).name || tpl;
 
 // ── 폼 파라미터 형태 검증 (F9 — 렌더 크래시 원천 차단). pSpec: rules/core/relwords.json ──
 function pspecOf(tpl) {
@@ -153,6 +171,80 @@ async function sGet(key) {
 async function sSet(key, val) {
   try { await window.storage.set(key, JSON.stringify(val)); return true; } catch { return false; }
 }
+
+/** 폼 스터디 기록 로드 — v2가 비어 있으면 구 아티팩트의 v1을 1회 이월한다.
+ *  ts 기준 dedupe라 조건이 깨져도(예: v2만 외부에서 지워짐) 중복이 쌓이지 않는다. */
+async function loadRuns(onMigrate) {
+  const v2 = (await sGet(RUNS_KEY)) || [];
+  if (v2.length) return v2;
+  const v1 = await sGet(RUNS_V1_KEY);
+  if (!Array.isArray(v1) || !v1.length) return v2;
+  const seen = new Set(v2.map((r) => r.ts));
+  const add = v1
+    .filter((r) => r && r.ts && !seen.has(r.ts))
+    .slice(0, MIGRATE_CAP)
+    .map((r) => ({
+      ts: r.ts, deckId: null, rowId: null,
+      msg: r.msg || "", ctx: "",
+      rel: r.rel || "", cands: Array.isArray(r.cands) ? r.cands : [],
+      pick: r.pick || "",
+      p: null,          // v1은 파라미터를 저장하지 않았다 — 제작 지시서 복원 불가
+      assumed: null,    // 미상 (false로 단정하지 않는다)
+      from: "v1",
+    }));
+  if (!add.length) return v2;
+  const merged = [...v2, ...add];
+  await sSet(RUNS_KEY, merged);
+  if (onMigrate) onMigrate(add.length);
+  return merged;
+}
+
+/** 승률 사전 — pick 빈도 상위 N (v1 이월분 포함) */
+function pickCounts(runs) {
+  const c = {};
+  for (const r of runs) if (r.pick) c[r.pick] = (c[r.pick] || 0) + 1;
+  return Object.entries(c).sort((a, b) => b[1] - a[1]);
+}
+
+/** 저장된 덱을 화면이 가정하는 형태로 보정 — 결손 필드로 인한 런타임 크래시(흰 화면) 방지 */
+function normalizeDeck(d) {
+  if (!d || typeof d !== "object" || !d.id) return null;
+  const def = d.definition && typeof d.definition === "object" ? d.definition : {};
+  const pr = def.priors && typeof def.priors === "object" ? def.priors : {};
+  const chain = Array.isArray(d.chain) ? d.chain : [];
+  return {
+    ...d,
+    schemaVersion: 2,
+    title: typeof d.title === "string" && d.title ? d.title : "제목 없는 덱",
+    definition: {
+      q1: def.q1 || "", q2: def.q2 || "", q3: def.q3 || "", q4: def.q4 || "", q5: def.q5 || "",
+      priors: { seen: pr.seen || "", criteria: pr.criteria || "", losers: pr.losers || "" },
+    },
+    archetype: d.archetype && d.archetype.id ? d.archetype : null,
+    chain: chain.filter((r) => r && r.id).map((r) => ({
+      id: r.id, label: r.label || "", head: r.head || "", sub: r.sub || "",
+      status: ["draft", "msg_ok", "form_ok"].includes(r.status) ? r.status : "draft",
+      form: r.form && r.form.tpl ? r.form : null,
+    })),
+    nextRowId: typeof d.nextRowId === "number" ? d.nextRowId : chain.length + 1,
+    holes: (Array.isArray(d.holes) ? d.holes : []).filter((h) => h && h.id).map((h) => ({
+      ...h, atIds: Array.isArray(h.atIds) ? h.atIds : [],
+      memo: h.memo || "", reason: h.reason || "", stale: !!h.stale,
+      disposition: ["apply", "verbal", "reject"].includes(h.disposition) ? h.disposition : null,
+    })),
+    archivedHoles: Array.isArray(d.archivedHoles) ? d.archivedHoles : [],
+    holesRunAt: d.holesRunAt || 0,
+  };
+}
+
+/** 처분이 룰북 §7의 필수 입력(구두=메모, 기각=사유)까지 채워졌는가 */
+const holeSettled = (h) =>
+  !!h.disposition &&
+  !(h.disposition === "verbal" && !h.memo.trim()) &&
+  !(h.disposition === "reject" && !h.reason.trim());
+
+/** 재검토 대상이 아닌(=fresh) 구멍이 하나라도 있는가 — 정의서 수정 시 stale 표시 여부 판정 */
+const anyFresh = (holes) => holes.some((h) => !h.stale);
 
 // ── 프롬프트 입력 조립 ──
 function defText(deck) {
@@ -469,6 +561,8 @@ export default function App() {
   decksRef.current = decks;
   const loadedAtRef = useRef(loadedAt);
   loadedAtRef.current = loadedAt;
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
 
   async function persist(next, opts = {}) {
     const now = Date.now();
@@ -477,9 +571,11 @@ export default function App() {
       if (stored && (stored.updatedAt || 0) !== loadedAtRef.current) { setConflict(true); return; }
     }
     const withMeta = { ...next, schemaVersion: 2, rulesVersion: RULES.version, updatedAt: now };
-    dirtyRef.current = false;
     const ok = await sSet(`deckboard:deck:${next.id}`, withMeta);
     if (!ok) { say("저장 실패 — storage 사용 불가 환경 (백업 내려받기를 사용하세요)"); return; }
+    // 저장 중(await 구간)에 새 편집이 들어왔으면 dirty를 내리지 않는다 —
+    // 내리면 다음 디바운스가 "변경 없음"으로 보고 마지막 편집을 조용히 버린다
+    if (deckRef.current === next) dirtyRef.current = false;
     setLoadedAt(now);
     setConflict(false);
     const list = (decksRef.current || []).map((d) => (d.id === next.id ? { ...d, title: next.title, updatedAt: now } : d));
@@ -497,10 +593,27 @@ export default function App() {
   const changeDeck = (next) => { dirtyRef.current = true; setDeck(next); };
 
   async function openDeck(id) {
-    const d = await sGet(`deckboard:deck:${id}`);
-    if (!d) { say("덱을 불러오지 못함"); return; }
+    const raw = await sGet(`deckboard:deck:${id}`);
+    const d = normalizeDeck(raw);
+    if (!d) { say("덱을 불러오지 못함 (손상되었거나 형식이 다름)"); return; }
     dirtyRef.current = false;
-    setDeck(d); setLoadedAt(d.updatedAt || 0); setConflict(false); setTab("def");
+    setDeck(d); setLoadedAt(raw.updatedAt || 0); setConflict(false); setTab("def");
+  }
+
+  /** 가져오기·복원 공통 — 목록 state까지 갱신해야 이후 저장이 목록을 덮어쓰며 덱을 지우지 않는다 */
+  async function adoptDeck(raw) {
+    const d = normalizeDeck(raw);
+    if (!d) { say("가져오기 실패 — 덱 형식이 아닙니다"); return; }
+    const now = d.updatedAt || Date.now();
+    const ok = await sSet(`deckboard:deck:${d.id}`, { ...d, updatedAt: now });
+    if (!ok) { say("가져오기 실패 — storage 사용 불가 환경"); return; }
+    const cur = decksRef.current || [];
+    const list = cur.some((x) => x.id === d.id)
+      ? cur.map((x) => (x.id === d.id ? { ...x, title: d.title, updatedAt: now } : x))
+      : [{ id: d.id, title: d.title, createdAt: now, updatedAt: now }, ...cur];
+    setDecks(list);
+    await sSet(DECKS_KEY, list);
+    say(`가져왔습니다: ${d.title} (목록에서 열 수 있습니다)`);
   }
 
   async function newDeck() {
@@ -508,7 +621,7 @@ export default function App() {
     const d = {
       id, schemaVersion: 2, rulesVersion: RULES.version, title: "새 덱", updatedAt: Date.now(),
       definition: { q1: "", q2: "", q3: "", q4: "", q5: "", priors: { seen: "", criteria: "", losers: "" } },
-      archetype: null, chain: [], nextRowId: 1, holes: [], holesRunAt: 0,
+      archetype: null, chain: [], nextRowId: 1, holes: [], archivedHoles: [], holesRunAt: 0,
     };
     const list = [{ id, title: d.title, createdAt: Date.now(), updatedAt: d.updatedAt }, ...(decks || [])];
     setDecks(list);
@@ -550,6 +663,7 @@ export default function App() {
             deck={deck} tab={tab} setTab={setTab} say={say}
             onBack={() => { if (dirtyRef.current) persist(deck); setDeck(null); }}
             onChange={changeDeck}
+            onImport={adoptDeck}
           />
         )}
       </div>
@@ -584,9 +698,9 @@ function TabBtn({ id, cur, set, label, badge }) {
   );
 }
 
-function DeckScreen({ deck, tab, setTab, onBack, onChange, say }) {
+function DeckScreen({ deck, tab, setTab, onBack, onChange, onImport, say }) {
   const staleHoles = deck.holes.filter((h) => h.stale).length;
-  const undone = deck.holes.filter((h) => !h.disposition).length;
+  const undone = deck.holes.filter((h) => !holeSettled(h)).length;
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
@@ -602,7 +716,21 @@ function DeckScreen({ deck, tab, setTab, onBack, onChange, say }) {
       {tab === "def" && <DefTab deck={deck} onChange={onChange} say={say} />}
       {tab === "chain" && <ChainTab deck={deck} onChange={onChange} say={say} />}
       {tab === "holes" && <HolesTab deck={deck} onChange={onChange} say={say} />}
-      {tab === "export" && <ExportTab deck={deck} say={say} />}
+      {tab === "export" && <ExportTab deck={deck} say={say} onImport={onImport} />}
+    </div>
+  );
+}
+
+/** 정의서 문항 입력칸 — 반드시 모듈 스코프에 둘 것.
+ *  컴포넌트를 부모 본문 안에서 정의하면 렌더마다 타입 정체성이 바뀌어 React가 서브트리를
+ *  언마운트·재마운트하고, textarea의 포커스·커서·한글 조합 상태가 글자마다 날아간다.
+ *  주의: onChange에 trim·정규화를 넣으면 제어 컴포넌트 커서가 튄다 — 값은 그대로 통과시킬 것. */
+function DefField({ value, onChange, label, hint, tall }) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs mb-1" style={{ color: C.gray, fontWeight: 700 }}>{label}</div>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={tall ? 3 : 2}
+        placeholder={hint} className="w-full text-sm outline-none resize-none rounded-lg p-3" style={{ background: C.card, border: "1px solid " + C.line, lineHeight: 1.6 }} />
     </div>
   );
 }
@@ -612,13 +740,42 @@ function DefTab({ deck, onChange, say }) {
   const d = deck.definition;
   const [ping, setPing] = useState("");
   const sug = suggestArchetype(d.q1);
-  const set = (patch) => onChange({ ...deck, definition: { ...d, ...patch } });
-  const setPrior = (k, v) => set({ priors: { ...d.priors, [k]: v } });
-  const saveWithStale = (patch) => {
-    // 정의서 저장 → 기존 구멍 검사 결과는 재검토 대상 (상태 전이 규칙)
-    onChange({ ...deck, definition: { ...d, ...patch }, holes: deck.holes.map((h) => ({ ...h, stale: true })) });
+
+  /** 정의서 변경의 단일 통로 — 값이 실제로 바뀔 때만 구멍 검사 결과를 재검토 대상으로 표시한다.
+   *  blur가 아니라 변경 시점에 판정하므로 (a) 무변경 포커스 통과로 인한 오탐이 없고
+   *  (b) blur 없이 탭을 벗어나도 표시를 놓치지 않는다. */
+  const applyDef = (patch, extra = {}) => {
+    const changed = Object.entries(patch).some(([k, v]) => d[k] !== v);
+    const needStale = changed && anyFresh(deck.holes);
+    if (needStale) say("정의서를 고쳤습니다 — 구멍 검사 결과가 재검토 대상이 됩니다");
+    if (!changed && !Object.keys(extra).length) return; // 새 객체를 만들지 않음 → 불필요한 저장 방지
+    onChange({
+      ...deck,
+      definition: { ...d, ...patch },
+      ...(needStale ? { holes: deck.holes.map((h) => ({ ...h, stale: true })) } : {}),
+      ...extra,
+    });
   };
-  const pickArch = (id, source) => onChange({ ...deck, archetype: { id, source } });
+  const setPrior = (k, v) => {
+    if (d.priors[k] === v) return;
+    const needStale = anyFresh(deck.holes);
+    if (needStale) say("프라이어를 고쳤습니다 — 구멍 검사 결과가 재검토 대상이 됩니다");
+    onChange({
+      ...deck,
+      definition: { ...d, priors: { ...d.priors, [k]: v } },
+      ...(needStale ? { holes: deck.holes.map((h) => ({ ...h, stale: true })) } : {}),
+    });
+  };
+  // 아키타입은 골격·프롬프트 컨텍스트에 들어가므로 정의서 변경에 준해 취급한다
+  const pickArch = (id, source) => {
+    if (deck.archetype?.id === id && deck.archetype?.source === source) return;
+    const needStale = anyFresh(deck.holes);
+    onChange({
+      ...deck,
+      archetype: { id, source },
+      ...(needStale ? { holes: deck.holes.map((h) => ({ ...h, stale: true })) } : {}),
+    });
+  };
 
   async function testConnection() {
     setPing("확인 중…");
@@ -626,12 +783,8 @@ function DefTab({ deck, onChange, say }) {
     setPing(r.ok ? "정상 — Claude 호출 가능" : `실패: ${r.error} (모델명·네트워크 확인)`);
   }
 
-  const Q = ({ k, label, hint, tall }) => (
-    <div className="mb-3">
-      <div className="text-xs mb-1" style={{ color: C.gray, fontWeight: 700 }}>{label}</div>
-      <textarea value={d[k]} onChange={(e) => set({ [k]: e.target.value })} onBlur={() => saveWithStale({})} rows={tall ? 3 : 2}
-        placeholder={hint} className="w-full text-sm outline-none resize-none rounded-lg p-3" style={{ background: C.card, border: "1px solid " + C.line, lineHeight: 1.6 }} />
-    </div>
+  const Q = (k, label, hint, tall) => (
+    <DefField key={k} value={d[k]} onChange={(v) => applyDef({ [k]: v })} label={label} hint={hint} tall={tall} />
   );
 
   return (
@@ -640,7 +793,12 @@ function DefTab({ deck, onChange, say }) {
         <div className="text-xs mb-2" style={{ color: C.gray, fontWeight: 700 }}>Q1. 이 자리가 끝났을 때 방이 무엇을 하기를 원하는가</div>
         <div className="flex flex-wrap gap-2 mb-2">
           {Object.keys(RULES.archetypes.decisionTable).map((k) => (
-            <button key={k} onClick={() => { set({ q1: k }); const s = suggestArchetype(k); if (s && (!deck.archetype || deck.archetype.source === "auto")) pickArch(s.id, "auto"); }}
+            <button key={k} onClick={() => {
+              const s = suggestArchetype(k);
+              const auto = s && (!deck.archetype || deck.archetype.source === "auto");
+              // Q1 변경과 아키타입 자동 제안을 한 번에 반영 (두 번 onChange하면 앞의 것이 덮인다)
+              applyDef({ q1: k }, auto ? { archetype: { id: s.id, source: "auto" } } : {});
+            }}
               className="text-sm px-3 py-1.5 rounded-full" style={{ border: "1px solid " + (d.q1 === k ? C.teal : C.line), background: d.q1 === k ? C.tealSoft : C.card, color: d.q1 === k ? C.tealDark : C.ink, fontWeight: d.q1 === k ? 700 : 400 }}>{k}</button>
           ))}
         </div>
@@ -662,16 +820,16 @@ function DefTab({ deck, onChange, say }) {
           </div>
         )}
       </div>
-      <Q k="q2" label="Q2. 그렇게 하려면 그들이 무엇을 믿어야 하는가 (한 문장 — governing thought)" hint="예: 건강 반응형 정기보험은 소규모 파일럿으로 검증할 가치가 있다" />
-      <Q k="q3" label="Q3. 지금 그들이 그걸 믿지 않는 이유는 (저항 순서 = 본론 구간 배열)" hint="저항 1 → 저항 2 → 저항 3 (순서대로)" tall />
-      <Q k="q4" label="Q4. 각 저항을 무너뜨리는 가장 강한 근거 하나 (저항당 하나 — 쌓지 말 것)" tall />
-      <Q k="q5" label="Q5. 이번에 다루지 않을 것" />
+      {Q("q2", "Q2. 그렇게 하려면 그들이 무엇을 믿어야 하는가 (한 문장, governing thought)", "예: 건강 반응형 정기보험은 소규모 파일럿으로 검증할 가치가 있다")}
+      {Q("q3", "Q3. 지금 그들이 그걸 믿지 않는 이유는 (저항 순서 = 본론 구간 배열)", "저항 1 → 저항 2 → 저항 3 (순서대로)", true)}
+      {Q("q4", "Q4. 각 저항을 무너뜨리는 가장 강한 근거 하나 (저항당 하나, 쌓지 말 것)", "", true)}
+      {Q("q5", "Q5. 이번에 다루지 않을 것", "")}
       <div className="rounded-xl p-4 mb-4" style={{ background: C.card, border: "1px solid " + C.line }}>
         <div className="text-xs mb-2" style={{ color: C.gray, fontWeight: 700 }}>오디언스 프라이어 (구멍 검사 ①⑥은 여기 입력한 만큼만 검출됨)</div>
         {[["seen", "ⓐ 이 방이 최근 본 관련 보고·장표"], ["criteria", "ⓑ 이 방의 평가 기준·KPI"], ["losers", "ⓒ 이 안이 통과되면 누가 무엇을 잃는가"]].map(([k, label]) => (
           <div key={k} className="mb-2">
             <div className="text-xs mb-1" style={{ color: C.gray }}>{label}</div>
-            <textarea value={d.priors[k]} onChange={(e) => setPrior(k, e.target.value)} onBlur={() => saveWithStale({})} rows={2}
+            <textarea value={d.priors[k]} onChange={(e) => setPrior(k, e.target.value)} rows={2}
               className="w-full text-sm outline-none resize-none rounded-lg p-2" style={{ background: C.grayTint, border: "1px solid " + C.line, lineHeight: 1.5 }} />
           </div>
         ))}
@@ -702,7 +860,7 @@ function ChainTab({ deck, onChange, say }) {
     const arch = RULES.archetypes.archetypes.find((a) => a.id === deck.archetype?.id);
     if (!arch) { say("정의서에서 아키타입을 먼저 정하세요 (Q1)"); return; }
     let nid = deck.nextRowId;
-    const add = arch.skeleton.filter((s) => !rows.some((r) => r.label === s.label)).map((s) => ({ id: "c" + nid++, label: s.label, head: "", sub: "", status: "draft", form: null, seg: s.seg }));
+    const add = arch.skeleton.filter((s) => !rows.some((r) => r.label === s.label)).map((s) => ({ id: "c" + nid++, label: s.label, head: "", sub: "", status: "draft", form: null }));
     setRows([...rows, ...add], { nextRowId: nid });
     say(`골격 ${add.length}줄 삽입 — 본론(body) 구간은 저항 순서로 재배열하세요 (intro·outro 고정)`);
   }
@@ -723,7 +881,17 @@ function ChainTab({ deck, onChange, say }) {
     if (j < 0 || j >= rows.length) return;
     const next = rows.slice();
     [next[i], next[j]] = [next[j], next[i]];
-    setRows(next);
+    // 체인 순서는 논증 순서 그 자체 — 링크 기반 구멍(비약·내부 충돌 등)은 재검토 대상이 된다
+    setRows(next, deck.holes.length ? { holes: deck.holes.map((h) => ({ ...h, stale: true })) } : {});
+  }
+
+  /** 폼 스터디 진입 가드 — 빈 헤드는 차단(널 입력이라 분석 대상이 없음), draft는 모달 안 배너로 경고 후 진행 */
+  function openStudy(r) {
+    if (!stripHl(r.head).trim()) {
+      say("헤드메시지를 먼저 작성하세요 — 폼 스터디는 메시지의 관계어에서 형태를 고릅니다 (룰북 §8)");
+      return;
+    }
+    setStudyRow(r);
   }
 
   async function diagnose() {
@@ -783,7 +951,7 @@ function ChainTab({ deck, onChange, say }) {
       )}
 
       <div className="grid gap-3">
-        {rows.map((r, i) => <ChainRow key={r.id} r={r} i={i} deck={deck} onEdit={editRow} onDel={delRow} onMove={move} onStudy={() => setStudyRow(r)} />)}
+        {rows.map((r, i) => <ChainRow key={r.id} r={r} i={i} deck={deck} onEdit={editRow} onDel={delRow} onMove={move} onStudy={() => openStudy(r)} />)}
       </div>
       {rows.length === 0 && <div className="text-sm py-8 text-center" style={{ color: C.gray }}>줄을 추가하거나 아키타입 골격을 삽입하세요. 한 줄 = 한 장.</div>}
 
@@ -804,6 +972,7 @@ function Badges({ issues }) {
 }
 
 function ChainRow({ r, i, deck, onEdit, onDel, onMove, onStudy }) {
+  const hasHead = !!stripHl(r.head).trim();
   const headIssues = lintHead(stripHl(r.head), true).concat(r.sub ? lintHead(r.sub, false) : []);
   const labelIssues = r.label ? lintText(r.label) : [];
   const statusLabel = { draft: "초안", msg_ok: "메시지 확정", form_ok: "폼 확정" }[r.status] || r.status;
@@ -825,11 +994,12 @@ function ChainRow({ r, i, deck, onEdit, onDel, onMove, onStudy }) {
       <div className="flex items-center gap-2 mt-1">
         <input value={r.sub || ""} onChange={(e) => onEdit(r.id, { sub: e.target.value })} placeholder="보조 헤드 (선택)" className="flex-1 text-sm outline-none px-2 py-1" style={{ background: "transparent", color: C.ink }} />
         <Badges issues={headIssues} />
-        {r.status === "draft" && stripHl(r.head) && !headIssues.some((x) => x.sev === "error") && (
+        {r.status === "draft" && stripHl(r.head).trim() && !headIssues.some((x) => x.sev === "error") && (
           <button className="text-xs px-2 py-1 rounded" style={{ border: "1px solid " + C.line }} onClick={() => onEdit(r.id, { status: "msg_ok" })}>메시지 확정</button>
         )}
-        <button className="text-xs px-2 py-1 rounded" style={{ background: r.form ? C.tealSoft : "transparent", border: "1px solid " + (r.form ? C.teal : C.line), color: r.form ? C.tealDark : C.ink, fontWeight: 700 }} onClick={onStudy}>
-          {r.form ? `폼: ${r.form.tpl}` : "폼 스터디"}
+        <button className="text-xs px-2 py-1 rounded" title={hasHead ? "" : "헤드메시지를 먼저 입력하세요"}
+          style={{ background: r.form ? C.tealSoft : "transparent", border: "1px solid " + (r.form ? C.teal : C.line), color: r.form ? C.tealDark : C.ink, fontWeight: 700, opacity: hasHead ? 1 : 0.45 }} onClick={onStudy}>
+          {r.form ? `폼: ${tplName(r.form.tpl)}` : "폼 스터디"}
         </button>
       </div>
     </div>
@@ -844,20 +1014,32 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
   const [manual, setManual] = useState(false);
   const [mTpl, setMTpl] = useState("");
   const [mP, setMP] = useState("{}");
+  const [note, setNote] = useState("");   // 모달 로컬 메시지 — 토스트는 오버레이 뒤에 가려 안 보인다
+  const [stats, setStats] = useState(null);
 
   const msg = stripHl(row.head);
   const ctx = `${deck.title} · ${archName(deck.archetype?.id) || ""}`;
 
-  useEffect(() => { analyze(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    // 이미 폼이 확정된 줄은 재진입 시 자동 분석하지 않는다 — 확인만 하려던 클릭이 30초 API 호출이 되던 문제
+    if (!row.form) analyze();
+    loadRuns((n) => setNote(`구 폼 스터디 기록 ${n}건을 이월했습니다 (파라미터·가정 여부는 미상)`)).then((rs) => setStats(pickCounts(rs)));
+    /* eslint-disable-next-line */
+  }, []);
 
   async function analyze() {
+    if (busy) return; // 중복 호출 방지 (구 아티팩트에 있던 가드가 이관 중 빠져 있었다)
     setBusy(true); setErr(null); setRun(null);
     const r = await callClaude(fill(PROMPTS.formStudy, { MESSAGE: msg, CONTEXT: ctx }), {
       maxTokens: 2000,
       validate: (o) => {
         if (!Array.isArray(o.cands)) return ["cands 형식"];
-        const good = o.cands.filter((cd) => cd && cd.tpl && validP(cd.tpl, cd.p));
-        if (!good.length) return ["유효 후보 없음 (p 형태 검증 실패)"];
+        // AI 후보는 관계어 사전 15종으로 제한 — 파생·구조 장은 수동 경로 전용
+        const good = o.cands.filter((cd) => cd && cd.tpl && AI_TPLS.has(cd.tpl) && validP(cd.tpl, cd.p));
+        if (!good.length) {
+          const off = o.cands.filter((cd) => cd?.tpl && !AI_TPLS.has(cd.tpl)).map((cd) => cd.tpl);
+          return [off.length ? `사전 외 템플릿만 반환됨: ${off.join(", ")} (파생 템플릿은 수동 경로 전용)` : "유효 후보 없음 (p 형태 검증 실패)"];
+        }
         o.cands = good.slice(0, 3);
         return [];
       },
@@ -873,9 +1055,9 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
       rel: run?.analysis?.rel || "", cands: (run?.cands || []).map((cd) => cd.tpl),
       pick: pick.tpl, p: pick.p, assumed: !!pick.assumed,
     };
-    const list = (await sGet(RUNS_KEY)) || [];
+    const list = await loadRuns();
     list.unshift(rec);
-    if (list.length > 300) { list.length = 300; say("기록 300건 초과 — 오래된 기록을 정리했습니다"); }
+    if (list.length > 300) { list.length = 300; setNote("기록 300건 초과 — 오래된 기록을 정리했습니다"); }
     await sSet(RUNS_KEY, list);
   }
 
@@ -890,21 +1072,43 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
 
   function pickManual() {
     let p;
-    try { p = JSON.parse(mP); } catch { say("p JSON 파싱 실패"); return; }
-    if (!validP(mTpl, p)) { say(`p가 ${mTpl}의 형태 계약(pSpec)에 맞지 않습니다`); return; }
+    try { p = JSON.parse(mP); } catch { setNote("p JSON 파싱 실패 — 따옴표·쉼표를 확인하세요"); return; }
+    if (!validP(mTpl, p)) { setNote(`p가 ${tplName(mTpl)}의 형태 계약(pSpec)에 맞지 않습니다`); return; }
     pick({ tpl: mTpl, p, assumed: false });
   }
 
-  const allTpls = [...RULES.relwords.templates, ...RULES.relwords.derived.filter((d) => d.tpl !== "cover")];
+  const allTpls = MANUAL_TPLS;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto py-8" style={{ background: "rgba(20,24,28,.5)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto py-8" style={{ background: "rgba(20,24,28,.5)" }}
+      onClick={() => { if (!busy) onClose(); }}>
       <div className="rounded-2xl p-5 w-full" style={{ maxWidth: 720, background: C.paper }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <div className="text-sm" style={{ fontWeight: 800 }}>폼 스터디 — {row.id} {row.label}</div>
           <button onClick={onClose} className="text-sm px-2" style={{ color: C.gray }}>닫기 ✕</button>
         </div>
         <div className="text-base mb-3" style={{ fontWeight: 700 }}>{msg}</div>
+
+        {row.status === "draft" && (
+          <div className="text-sm px-4 py-2 rounded-lg mb-3" style={{ background: C.warnBg, color: C.warn }}>
+            메시지가 아직 확정되지 않은 줄입니다 — 폼을 먼저 고르면 이후 헤드를 수정할 때 폼 확정이 해제됩니다 (파이프라인 §1)
+          </div>
+        )}
+        {note && (
+          <div className="text-sm px-4 py-2 rounded-lg mb-3 flex items-center gap-2" style={{ background: C.grayTint, color: C.ink }}>
+            <span className="flex-1">{note}</span>
+            <button onClick={() => setNote("")} className="text-xs px-2" style={{ color: C.gray }}>✕</button>
+          </div>
+        )}
+        {row.form && !run && !busy && (
+          <div className="rounded-xl p-3 mb-3" style={{ background: C.card, border: "1px solid " + C.teal }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm"><b>현재 폼: {tplName(row.form.tpl)}</b>{row.form.assumed && <span className="text-xs ml-2 px-1.5 rounded" style={{ background: C.warnBg, color: C.warn }}>가정 수치 포함</span>}</div>
+              <button onClick={analyze} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: C.teal, color: "#fff", fontWeight: 700 }}>다시 분석 (AI)</button>
+            </div>
+            <Sketch tpl={row.form.tpl} p={row.form.p} title={msg} />
+          </div>
+        )}
 
         {busy && <div className="text-sm py-6 text-center" style={{ color: C.gray }}>관계어를 읽고 형태 후보를 고르는 중…</div>}
         {err && (
@@ -928,7 +1132,7 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
                 <div key={i} className="rounded-xl p-3" style={{ background: C.card, border: "1px solid " + C.line }}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-sm">
-                      <b>{(allTpls.find((t) => t.tpl === cd.tpl) || {}).name || cd.tpl}</b>
+                      <b>{tplName(cd.tpl)}</b>
                       <span className="text-xs ml-2" style={{ color: C.teal, fontWeight: 700 }}>강조 — {cd.emph}</span>
                       {cd.assumed && <span className="text-xs ml-2 px-1.5 rounded" style={{ background: C.warnBg, color: C.warn }}>가정 수치 포함 → 각주 필수</span>}
                     </div>
@@ -956,6 +1160,23 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
             <textarea value={mP} onChange={(e) => setMP(e.target.value)} rows={6} className="w-full text-xs outline-none resize-none rounded-lg p-2" style={{ fontFamily: "monospace", background: C.grayTint, lineHeight: 1.5 }} />
           </div>
         )}
+
+        {stats && stats.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs mb-2" style={{ color: C.gray, fontWeight: 700 }}>이기는 형태 — 지금까지의 선택 누적 (승률 사전)</div>
+            <div className="grid gap-1">
+              {stats.slice(0, 5).map(([tpl, n]) => (
+                <div key={tpl} className="flex items-center gap-2 text-xs">
+                  <span style={{ width: 96 }}>{tplName(tpl)}</span>
+                  <span className="flex-1" style={{ background: C.grayTint, borderRadius: 4, height: 8 }}>
+                    <span className="block" style={{ width: `${(n / stats[0][1]) * 100}%`, height: 8, background: C.teal, borderRadius: 4 }} />
+                  </span>
+                  <span style={{ color: C.gray, width: 18, textAlign: "right" }}>{n}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -965,11 +1186,11 @@ function FormStudy({ deck, row, onClose, onChange, say }) {
 function HolesTab({ deck, onChange, say }) {
   const [busy, setBusy] = useState(false);
   const [missing, setMissing] = useState(null);
-  const [archived, setArchived] = useState([]);
   const [showArch, setShowArch] = useState(false);
 
   const holes = deck.holes;
-  const done = holes.filter((h) => h.disposition).length;
+  const archived = deck.archivedHoles || [];
+  const done = holes.filter(holeSettled).length;
   const typeName = (t) => (RULES.holes.types.find((x) => x.id === t) || {}).name || `유형 ${t}`;
   const rowLabel = (id) => { const r = deck.chain.find((x) => x.id === id); return r ? `${id}(${r.label || "무제"})` : `${id}(삭제된 줄)`; };
 
@@ -980,7 +1201,8 @@ function HolesTab({ deck, onChange, say }) {
     const r = await callClaude(fill(PROMPTS.holeScan, { DEFINITION: defText(deck), CHAIN: chainText(deck) }), {
       maxTokens: 2000,
       validate: (o) => {
-        if (Array.isArray(o.priorsMissing)) return [];
+        // 빈 배열은 "프라이어 부족"이 아니다 — []로 통과시키면 아래에서 holes를 통째로 버린다
+        if (Array.isArray(o.priorsMissing) && o.priorsMissing.length) return [];
         if (!Array.isArray(o.holes)) return ["holes 형식"];
         for (const h of o.holes) {
           if (!(h.type >= 1 && h.type <= 6) || !Array.isArray(h.atIds) || !h.question || !h.fix) return ["holes 항목 형식"];
@@ -991,7 +1213,7 @@ function HolesTab({ deck, onChange, say }) {
     });
     setBusy(false);
     if (!r.ok) { say(`검사 실패: ${r.error} — 재시도하거나 아래 유형학으로 수동 점검`); return; }
-    if (r.data.priorsMissing) { setMissing(r.data.priorsMissing); return; }
+    if (r.data.priorsMissing?.length) { setMissing(r.data.priorsMissing); return; }
     // 재검사 병합: (type + atIds) 매칭이면 처분·메모 이월, 미매칭 기존 항목은 보관
     const key = (h) => `${h.type}|${[...h.atIds].sort().join(",")}`;
     const oldByKey = new Map(holes.map((h) => [key(h), h]));
@@ -1004,17 +1226,21 @@ function HolesTab({ deck, onChange, say }) {
         disposition: old?.disposition ?? null, memo: old?.memo ?? "", reason: old?.reason ?? "", stale: false,
       };
     });
-    setArchived([...oldByKey.values()]);
-    onChange({ ...deck, holes: merged, holesRunAt: Date.now() });
-    say(`검출 ${merged.length}건 (처분 이월 ${merged.filter((h) => h.disposition).length}건)`);
+    // 미재현 항목은 처분·메모가 붙어 있을 수 있으므로 덱에 보존한다 (화면 로컬 state면 탭 이동에 소실)
+    const dropped = [...oldByKey.values()].filter((h) => h.disposition || h.memo || h.reason);
+    onChange({
+      ...deck, holes: merged, holesRunAt: Date.now(),
+      archivedHoles: [...dropped, ...(deck.archivedHoles || [])].slice(0, 100),
+    });
+    say(`검출 ${merged.length}건 (처분 이월 ${merged.filter((h) => h.disposition).length}건${dropped.length ? `, 미재현 보관 ${dropped.length}건` : ""})`);
   }
 
   function setHole(id, patch) {
     onChange({ ...deck, holes: holes.map((h) => (h.id === id ? { ...h, ...patch } : h)) });
   }
   function disposition(h, d) {
-    if (d === "verbal" && !h.memo) { say("구두 대응은 예상 문답 메모가 필수입니다 (룰북 §7)"); }
-    if (d === "reject" && !h.reason) { say("기각은 사유 기록이 필수입니다 (룰북 §7)"); }
+    // 필수 입력(구두=메모, 기각=사유)은 클릭 시점이 아니라 holeSettled로 판정한다 —
+    // 입력란은 이 클릭으로 비로소 나타나므로 여기서 경고하면 항상 뜨는 무의미한 알림이 된다
     setHole(h.id, { disposition: h.disposition === d ? null : d });
   }
 
@@ -1061,6 +1287,11 @@ function HolesTab({ deck, onChange, say }) {
                 <button key={d.id} onClick={() => disposition(h, d.id)} className="text-xs px-2.5 py-1 rounded-full"
                   style={{ border: "1px solid " + (h.disposition === d.id ? C.teal : C.line), background: h.disposition === d.id ? C.tealSoft : "transparent", color: h.disposition === d.id ? C.tealDark : C.ink, fontWeight: 700 }}>{d.name}</button>
               ))}
+              {h.disposition && !holeSettled(h) && (
+                <span className="text-xs px-2 py-0.5 rounded" style={{ background: C.warnBg, color: C.warn }}>
+                  {h.disposition === "verbal" ? "예상 문답 메모 필요 (룰북 §7)" : "기각 사유 필요 (룰북 §7)"}
+                </span>
+              )}
             </div>
             {h.disposition === "verbal" && (
               <textarea value={h.memo} onChange={(e) => setHole(h.id, { memo: e.target.value })} rows={2} placeholder="예상 문답 메모 (필수) — 방에서 이 반문이 나오면 이렇게 답한다"
@@ -1076,8 +1307,13 @@ function HolesTab({ deck, onChange, say }) {
 
       {archived.length > 0 && (
         <div className="mt-3 text-xs" style={{ color: C.gray }}>
-          <button onClick={() => setShowArch(!showArch)} style={{ textDecoration: "underline" }}>이전 검출 {archived.length}건 (재검사에서 미재현)</button>
-          {showArch && archived.map((h, i) => <div key={i} className="mt-1">· {typeName(h.type)} — {h.question} {h.disposition ? `[${h.disposition}]` : ""}</div>)}
+          <button onClick={() => setShowArch(!showArch)} style={{ textDecoration: "underline" }}>이전 검출 {archived.length}건 (재검사에서 미재현, 처분 기록 보존)</button>
+          {showArch && archived.map((h, i) => (
+            <div key={i} className="mt-1">
+              · {typeName(h.type)}: {h.question} {h.disposition ? `[${h.disposition}]` : ""}
+              {h.memo ? ` 메모: ${h.memo}` : ""}{h.reason ? ` 사유: ${h.reason}` : ""}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1085,16 +1321,19 @@ function HolesTab({ deck, onChange, say }) {
 }
 
 // ── 탭 4: 내보내기 (deck-spec + 백업 + CDN 실험) ──
-function ExportTab({ deck, say }) {
+function ExportTab({ deck, say, onImport }) {
   const [withCover, setWithCover] = useState(true);
   const [coverP, setCoverP] = useState({ eyebrow: "", title: deck.title, subtitle: "", credit: "" });
   const [fileName, setFileName] = useState("");
   const [spec, setSpec] = useState("");
   const [imp, setImp] = useState("");
   const [cdnState, setCdnState] = useState("idle"); // idle | loading | ready | failed
+  const [cdnAttempt, setCdnAttempt] = useState(0);
+  const cdnTimers = useRef([]);
 
   const notReady = deck.chain.filter((r) => r.status !== "form_ok");
-  const undone = deck.holes.filter((h) => !h.disposition && !h.stale);
+  // stale(재검토 필요)은 "처분됨"이 아니다 — 제외하면 정의서를 고쳐 전건 stale이 된 순간 경고가 사라진다
+  const undone = deck.holes.filter((h) => !holeSettled(h) || h.stale);
 
   function buildSpec() {
     const slides = [];
@@ -1109,7 +1348,8 @@ function ExportTab({ deck, say }) {
       };
       if (r.form?.assumed) {
         s.assumed = true;
-        s.footnote = "* 수치는 가정(예시) — 근거 작성 필요";
+        // 대시(—)는 문체 규정의 금지 기호 — 넣으면 이 덱보드가 내보낸 스펙이 자기 엔진 검증에서 떨어진다
+        s.footnote = "* 수치는 가정(예시), 근거 작성 필요";
       }
       slides.push(s);
     }
@@ -1144,41 +1384,64 @@ function ExportTab({ deck, say }) {
     URL.revokeObjectURL(url);
   }
 
-  // ── [실험] 브라우저 pptx 생성 — CDN 로드 실패 시 조용히 숨김 (주 경로는 Claude Code 빌드) ──
-  function loadCdn() {
+  // ── [실험] 브라우저 pptx 생성 — 전 CDN 실패 시 조용히 숨김 (주 경로는 Claude Code 빌드) ──
+  // 아티팩트 CSP가 어떤 호스트를 허용하는지 확정할 수 없어 순차 폴백한다.
+  // cdnjs를 1차로 두되, npm 레이아웃이 확인된 jsdelivr·unpkg가 뒤를 받친다.
+  function loadCdn(idx = 0) {
     if (window.PptxGenJS) { setCdnState("ready"); return; }
+    if (idx >= CDN_SRCS.length) {
+      // 타임아웃으로 넘어간 앞선 시도가 뒤늦게 로드됐을 수 있다 — 전역을 진실의 근원으로 재확인
+      setCdnState(window.PptxGenJS ? "ready" : "failed");
+      return;
+    }
+    setCdnAttempt(idx + 1);
     setCdnState("loading");
     const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js";
-    const timer = setTimeout(() => { setCdnState("failed"); s.remove(); }, 8000);
-    s.onload = () => { clearTimeout(timer); setCdnState(window.PptxGenJS ? "ready" : "failed"); };
-    s.onerror = () => { clearTimeout(timer); setCdnState("failed"); };
+    s.src = CDN_SRCS[idx];
+    let settled = false;
+    // script는 DOM에서 제거해도 진행 중인 로드가 취소되지 않는다 — 태그는 두고 핸들러만 무력화한다
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      cdnTimers.current = cdnTimers.current.filter((t) => t !== timer);
+      if (window.PptxGenJS) setCdnState("ready");
+      else loadCdn(idx + 1);
+    };
+    const timer = setTimeout(done, 5000);
+    cdnTimers.current.push(timer);
+    s.onload = done;
+    s.onerror = done;
     document.head.appendChild(s);
   }
+  useEffect(() => () => { cdnTimers.current.forEach(clearTimeout); }, []);
   async function draftPptx() {
     try {
       const specObj = buildSpec();
       const pres = new window.PptxGenJS();
       pres.layout = "LAYOUT_WIDE";
+      // 색은 조직 팩(colors.json)에서 온다 — 코드에 hex를 직접 쓰지 않는다 (ppt/CLAUDE.md 금지 조항)
+      const c = RULES.colors.roles;
+      const font = RULES.colors.font;
       specObj.slides.forEach((s, i) => {
         const sl = pres.addSlide();
         if (s.template === "cover") {
-          sl.background = { color: "0F1E5A" };
-          sl.addText(s.p.title || "", { x: 0.9, y: 2.8, w: 11.5, h: 1, fontFace: "맑은 고딕", fontSize: 44, bold: true, color: "FFFFFF" });
-          if (s.p.subtitle) sl.addText(s.p.subtitle, { x: 0.9, y: 3.9, w: 11.5, h: 0.5, fontFace: "맑은 고딕", fontSize: 16, color: "C7D2DC" });
+          sl.background = { color: c.structure };
+          sl.addText(s.p.title || "", { x: 0.9, y: 2.8, w: 11.5, h: 1, fontFace: font, fontSize: 44, bold: true, color: c.paper });
+          if (s.p.subtitle) sl.addText(s.p.subtitle, { x: 0.9, y: 3.9, w: 11.5, h: 0.5, fontFace: font, fontSize: 16, color: c.coverSub });
           return;
         }
-        sl.addText(s.label || "", { x: 0.4, y: 0.36, w: 9.6, h: 0.6, fontFace: "맑은 고딕", fontSize: 26, bold: true, color: "0F1E5A" });
-        sl.addText(s.head.runs.map((r) => r.t).join(""), { x: 0.7, y: 1.3, w: 11.9, h: 0.6, fontFace: "맑은 고딕", fontSize: 18, bold: true, color: "1F2A44" });
-        if (s.head.sub) sl.addText(s.head.sub, { x: 0.72, y: 1.95, w: 11.9, h: 0.35, fontFace: "맑은 고딕", fontSize: 12, color: "5A6472" });
-        sl.addText(`[초안] 폼: ${s.template} — 정식 렌더는 Claude Code 빌드(deck:build)에서`, { x: 0.72, y: 3.4, w: 11.9, h: 0.5, fontFace: "맑은 고딕", fontSize: 12, color: "8A93A4", align: "center" });
-        sl.addText(String(i + 1), { x: 12.5, y: 7.15, w: 0.5, h: 0.25, fontFace: "맑은 고딕", fontSize: 9, color: "8A93A4", align: "right" });
+        sl.addText(s.label || "", { x: 0.4, y: 0.36, w: 9.6, h: 0.6, fontFace: font, fontSize: 26, bold: true, color: c.structure });
+        sl.addText(s.head.runs.map((r) => r.t).join(""), { x: 0.7, y: 1.3, w: 11.9, h: 0.6, fontFace: font, fontSize: 18, bold: true, color: c.ink });
+        if (s.head.sub) sl.addText(s.head.sub, { x: 0.72, y: 1.95, w: 11.9, h: 0.35, fontFace: font, fontSize: 12, color: c.legacyDark });
+        sl.addText(`[초안] 폼: ${tplName(s.template)}, 정식 렌더는 Claude Code 빌드(deck:build)에서`, { x: 0.72, y: 3.4, w: 11.9, h: 0.5, fontFace: font, fontSize: 12, color: c.mut, align: "center" });
+        sl.addText(String(i + 1), { x: 12.5, y: 7.15, w: 0.5, h: 0.25, fontFace: font, fontSize: 9, color: c.mut, align: "right" });
       });
       await pres.writeFile({ fileName: specObj.meta.fileName.replace(/\.pptx$/, "") + "_초안.pptx" });
       say("초안 pptx 다운로드됨 (레이아웃 없는 미리보기 수준)");
     } catch (e) {
-      setCdnState("failed");
-      say("브라우저 생성 실패 — Claude Code 경로를 사용하세요");
+      // 생성 실패는 CDN 로드 실패가 아니다 — 여기서 cdnState를 내리면 정상 로드된 라이브러리까지 숨긴다
+      say("브라우저 생성 실패 — Claude Code 빌드 경로를 사용하세요");
     }
   }
 
@@ -1220,23 +1483,17 @@ function ExportTab({ deck, say }) {
         <textarea value={imp} onChange={(e) => setImp(e.target.value)} rows={2} placeholder="가져오기 — 백업 JSON을 붙여넣고 아래 버튼"
           className="w-full text-xs outline-none resize-none rounded-lg p-2" style={{ fontFamily: "monospace", background: C.grayTint }} />
         <button onClick={() => {
-          try {
-            const d = JSON.parse(imp);
-            if (!d.id || !Array.isArray(d.chain)) throw new Error("형식");
-            sSet(`deckboard:deck:${d.id}`, d).then(() => say("가져옴 — 목록에서 열 수 있습니다 (같은 id면 덮어씀)"));
-            sGet(DECKS_KEY).then((list) => {
-              const l = list || [];
-              if (!l.some((x) => x.id === d.id)) sSet(DECKS_KEY, [{ id: d.id, title: d.title, createdAt: Date.now(), updatedAt: d.updatedAt || Date.now() }, ...l]);
-            });
-          } catch { say("가져오기 실패 — JSON 형식 확인"); }
+          let d;
+          try { d = JSON.parse(imp); } catch { say("가져오기 실패 — JSON 형식 확인"); return; }
+          onImport(d); // 본문·목록·화면 state를 한 번에 맞춘다 (목록 갱신을 빠뜨리면 다음 저장이 덱을 지운다)
         }} className="text-xs px-3 py-1 rounded-lg mt-1" style={{ border: "1px solid " + C.line }}>가져오기</button>
       </div>
 
       {cdnState !== "failed" && (
         <div className="rounded-xl p-4" style={{ background: C.card, border: "1px dashed " + C.line }}>
           <div className="text-xs mb-2" style={{ color: C.gray, fontWeight: 700 }}>[실험] 브라우저에서 초안 pptx 생성 — 정식 렌더 아님, CDN 차단 환경이면 자동으로 사라짐</div>
-          {cdnState === "idle" && <button onClick={loadCdn} className="text-sm px-3 py-1.5 rounded-lg" style={{ border: "1px solid " + C.line }}>pptxgenjs 로드 시도</button>}
-          {cdnState === "loading" && <span className="text-sm" style={{ color: C.gray }}>로드 중…</span>}
+          {cdnState === "idle" && <button onClick={() => loadCdn(0)} className="text-sm px-3 py-1.5 rounded-lg" style={{ border: "1px solid " + C.line }}>pptxgenjs 로드 시도</button>}
+          {cdnState === "loading" && <span className="text-sm" style={{ color: C.gray }}>로드 중… ({cdnAttempt}/{CDN_SRCS.length})</span>}
           {cdnState === "ready" && <button onClick={draftPptx} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: C.teal, color: "#fff", fontWeight: 700 }}>초안 pptx 다운로드</button>}
         </div>
       )}

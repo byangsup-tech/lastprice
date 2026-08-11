@@ -519,7 +519,8 @@
           "type": "string",
           "req": false
         }
-      }
+      },
+      "structural": true
     },
     {
       "tpl": "section",
@@ -538,7 +539,8 @@
           "type": "string",
           "req": false
         }
-      }
+      },
+      "structural": true
     }
   ],
   "typeDefs": {
@@ -561,5 +563,6 @@
   },
   "quantRule": "정량 판정은 메시지 문장 기준 — 수치·비교·추세가 문장에 명시돼야 차트형(bars/trend) 의무, 정량 함의만 있으면 도해 허용",
   "textAnswer": "글이 정답인 메시지 존재(정의·원칙·요청). 실패는 글이 아니라 문단으로 쓰는 것 — textgrid가 제3의 정당한 형태",
-  "pickRule": "메시지에서 어느 단어가 싸움의 핵심인가"
+  "pickRule": "메시지에서 어느 단어가 싸움의 핵심인가",
+  "structuralNote": "structural: true = 구조 장(표지·간지) — 본문 장의 폼이 아니므로 폼 스터디 후보·수동 선택지에서 제외한다"
 }

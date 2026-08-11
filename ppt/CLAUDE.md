@@ -44,7 +44,9 @@ pptxgenjs 주의: 색은 `#` 없는 6자리 hex(Theme 경유), `LAYOUT_WIDE`(13.
 
 - 규칙 개정: 룰북 조항과 rules JSON을 **쌍으로** 수정 → `npm run artifact:build` → `git diff ppt/artifact/deckboard.jsx`로 아티팩트 반영 확인 → 골든 재빌드로 회귀 확인 → `rulebook/CHANGELOG.md` 기록. 대응표는 CHANGELOG의 "조항 ↔ rules 대응표"
 - 부서 이동(조직 팩 교체): `README.md`의 절차를 따름 — 벤치마크 재추출 → `rules/org/<새팩>/` 4파일 생성 → `rules/active.json` 전환 → 룰북 §5·§6 개정 → 아티팩트 재조립 → 골든 재빌드 회귀 확인
-- 아티팩트 수정: `artifact/src/deckboard.template.jsx`만 편집 (deckboard.jsx는 생성물 — 직접 수정 금지) → `npm run artifact:build` → 사용자가 deckboard.jsx 전문을 claude.ai 아티팩트에 붙여넣어 갱신
+- 아티팩트 수정: `artifact/src/deckboard.template.jsx`만 편집 (deckboard.jsx는 생성물 — 직접 수정 금지) → `npm run artifact:build` → **`npm run artifact:test`(순수 로직 회귀 58건)** → 사용자가 deckboard.jsx 전문을 claude.ai 아티팩트에 붙여넣어 갱신
+- 아티팩트에 React 컴포넌트를 추가할 때 **컴포넌트를 다른 컴포넌트 본문 안에서 정의하지 말 것** — 렌더마다 타입 정체성이 바뀌어 입력칸의 포커스·한글 조합 상태가 글자마다 날아간다 (모듈 스코프에 두고 props로 받을 것)
+- 아티팩트가 내보내는 하드코딩 문자열(각주 등)도 문체 규정 대상이다 — 금지 기호가 섞이면 덱보드가 자기 엔진 검증에서 떨어지는 스펙을 만든다
 
 ## 금지
 

@@ -19,10 +19,12 @@ const archetypes = J("rules/core/archetypes.json");
 const holes = J("rules/core/holes.json");
 const relwords = J("rules/core/relwords.json");
 
-// ── 아티팩트가 실제 소비하는 최소 페이로드 (크기 절약 — colors/visual/ladder는 엔진 전용) ──
+// ── 아티팩트가 실제 소비하는 최소 페이로드 (크기 절약 — visual/ladder는 엔진 전용) ──
+// colors는 [실험] 브라우저 초안 pptx가 역할색을 쓰기 위해 포함한다 (코드에 hex 직접 기입 금지 조항 준수)
 const RULES = {
   version: active.rulesVersion,
   org,
+  colors: { font: colors.font, roles: colors.roles },
   style: {
     endings: style.endings,
     headline: style.headline,
