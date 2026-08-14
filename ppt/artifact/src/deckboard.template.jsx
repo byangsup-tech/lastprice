@@ -1008,9 +1008,42 @@ function Badges({ issues }) {
   );
 }
 
+// 교정안 패널 — 모듈 스코프 (중첩 정의 시 리마운트로 포커스·한글 조합 유실)
+function RewriteBox({ rw, onPick, onClose }) {
+  if (!rw) return null;
+  return (
+    <div className="rounded-lg p-2 mt-2 text-sm" style={{ background: C.grayTint, border: "1px solid " + C.line }}>
+      {rw.busy && <span style={{ color: C.gray }}>교정안 생성 중…</span>}
+      {rw.err && <span style={{ color: C.err }}>교정 실패: {rw.err} — 수동으로 고치거나 재시도 (수동 경로)</span>}
+      {rw.alts &&
+        rw.alts.map((a, k) => (
+          <div key={k} className="flex items-start gap-2 mb-1">
+            <button className="text-xs px-2 py-0.5 rounded shrink-0" style={{ background: C.tealSoft, border: "1px solid " + C.teal, color: C.tealDark, fontWeight: 700 }} onClick={() => onPick(a)}>적용</button>
+            <span><b>{a.text}</b> <span style={{ color: C.gray }}>— {a.why}</span></span>
+          </div>
+        ))}
+      <button className="text-xs mt-1" style={{ color: C.gray }} onClick={onClose}>닫기</button>
+    </div>
+  );
+}
+
 function ChainRow({ r, i, deck, onEdit, onDel, onMove, onStudy }) {
+  const [rw, setRw] = useState(null);
   const hasHead = !!stripHl(r.head).trim();
   const headIssues = lintHead(stripHl(r.head), true).concat(r.sub ? lintHead(r.sub, false) : []);
+  const askRewrite = async () => {
+    if (rw && rw.busy) return;
+    setRw({ busy: true });
+    const res = await callClaude(
+      fill(PROMPTS.headlineRewrite, { HEADLINE: r.head, VIOLATIONS: headIssues.map((x) => x.msg).join(", ") }),
+      { maxTokens: 600, validate: (o) => Array.isArray(o.alts) && o.alts.length > 0 && o.alts.every((a) => a && typeof a.text === "string" && a.text.trim()) },
+    );
+    if (!res.ok) { setRw({ err: res.error }); return; }
+    // 교정안도 같은 lint를 통과해야 제시 — 위반 교정안은 버린다 (F9와 같은 원칙: 모델 출력은 검증 후 수용)
+    const clean = res.data.alts.filter((a) => !lintHead(stripHl(a.text), true).some((x) => x.sev === "error")).slice(0, 2);
+    if (!clean.length) { setRw({ err: "생성된 교정안이 다시 문체 검사에 걸림" }); return; }
+    setRw({ alts: clean });
+  };
   const labelIssues = r.label ? lintText(r.label) : [];
   const statusLabel = { draft: "초안", msg_ok: "메시지 확정", form_ok: "폼 확정" }[r.status] || r.status;
   const statusColor = r.status === "form_ok" ? C.tealDark : r.status === "msg_ok" ? C.warn : C.gray;
@@ -1031,6 +1064,9 @@ function ChainRow({ r, i, deck, onEdit, onDel, onMove, onStudy }) {
       <div className="flex items-center gap-2 mt-1">
         <input value={r.sub || ""} onChange={(e) => onEdit(r.id, { sub: e.target.value })} placeholder="보조 헤드 (선택)" className="flex-1 text-sm outline-none px-2 py-1" style={{ background: "transparent", color: C.ink }} />
         <Badges issues={headIssues} />
+        {hasHead && headIssues.length > 0 && (
+          <button className="text-xs px-2 py-1 rounded" style={{ border: "1px solid " + C.warn, color: C.warn, fontWeight: 700 }} onClick={askRewrite} title="위반을 고친 대안 2개 제안 (AI) — 선택은 사람이">교정안</button>
+        )}
         {r.status === "draft" && stripHl(r.head).trim() && !headIssues.some((x) => x.sev === "error") && (
           <button className="text-xs px-2 py-1 rounded" style={{ border: "1px solid " + C.line }} onClick={() => onEdit(r.id, { status: "msg_ok" })}>메시지 확정</button>
         )}
@@ -1039,6 +1075,7 @@ function ChainRow({ r, i, deck, onEdit, onDel, onMove, onStudy }) {
           {r.form ? `폼: ${tplName(r.form.tpl)}` : "폼 스터디"}
         </button>
       </div>
+      <RewriteBox rw={rw} onPick={(a) => { onEdit(r.id, { head: a.text }); setRw(null); }} onClose={() => setRw(null)} />
     </div>
   );
 }

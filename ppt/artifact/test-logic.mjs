@@ -18,7 +18,7 @@ src = src.replace(/^import .*$/m, "const useState=()=>[],useEffect=()=>{},useRef
 src = src.replace("export default function App()", "function App()");
 // 테스트 대상 내부 함수를 밖으로 노출
 src += `
-export const __t = { RULES, AI_TPLS, MANUAL_TPLS, tplName, lintText, lintHead, validP, normalizeDeck, holeSettled, anyFresh, loadRuns, pickCounts, parseHead, stripHl, CDN_SRCS, MIGRATE_CAP, RUNS_KEY, RUNS_V1_KEY };
+export const __t = { RULES, PROMPTS, AI_TPLS, MANUAL_TPLS, tplName, lintText, lintHead, validP, normalizeDeck, holeSettled, anyFresh, loadRuns, pickCounts, parseHead, stripHl, CDN_SRCS, MIGRATE_CAP, RUNS_KEY, RUNS_V1_KEY };
 `;
 writeFileSync(TMP, src);
 execSync(`npx esbuild ${TMP} --loader:.jsx=jsx --jsx=transform --jsx-factory=__h --jsx-fragment=__f --format=cjs --outfile=${OUT}`, { stdio: "pipe" });
@@ -147,6 +147,14 @@ eq("빈 셀 거부", T.validP("perf_table", { cols: ["계획", "실적"], rows: 
 eq("행 1개 거부 (min 2)", T.validP("perf_table", { cols: ["계획", "실적"], rows: [{ l: "a", cells: ["1", "2"] }] }), false);
 eq("compare_table 6열 허용", T.validP("compare_table", { cols: ["당사", "A", "B", "C", "D", "E"], rows: [{ l: "a", cells: ["1", "2", "3", "4", "5", "6"] }, { l: "b", cells: ["1", "2", "3", "4", "5", "6"] }] }), true);
 eq("perf_table 6열 거부 (max 5)", T.validP("perf_table", { cols: ["a", "b", "c", "d", "e", "f"], rows: [{ l: "a", cells: ["1", "2", "3", "4", "5", "6"] }, { l: "b", cells: ["1", "2", "3", "4", "5", "6"] }] }), false);
+
+console.log("\n[M4] 문체 교정 프롬프트 배선 (rules v0.3.2)");
+eq("headlineRewrite 존재", typeof T.PROMPTS.headlineRewrite, "string");
+eq("정적 슬롯 {{RULES.STYLE}} 해소", T.PROMPTS.headlineRewrite.includes("{{RULES.STYLE}}"), false);
+eq("런타임 슬롯 {{HEADLINE}} 잔존", T.PROMPTS.headlineRewrite.includes("{{HEADLINE}}"), true);
+eq("런타임 슬롯 {{VIOLATIONS}} 잔존", T.PROMPTS.headlineRewrite.includes("{{VIOLATIONS}}"), true);
+eq("종결어미 규정 포함", T.PROMPTS.headlineRewrite.includes("함/됨/임"), true);
+eq("금지 기호 규정 포함", T.PROMPTS.headlineRewrite.includes("—"), true);
 
 console.log(`\n${"=".repeat(50)}\n통과 ${pass} / 실패 ${fail}`);
 process.exit(fail ? 1 : 0);

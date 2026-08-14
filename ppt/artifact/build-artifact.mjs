@@ -59,10 +59,19 @@ const relText =
     .map((t) => `${t.tpl}(${t.name}) | 방아쇠: ${t.triggers.join("·")}${t.quant ? " | 정량(차트형)" : ""} | p: ${JSON.stringify(t.pSpec)}`)
     .join("\n") + `\n(후보는 위 ${relwords.templates.length}종에서만 고른다 — 파생 템플릿은 수동 경로 전용)`;
 
+const styleText = [
+  `종결어미: 개조식 ${style.endings.join("/")} (핵심 문장은 반드시 이 어미로 끝남)`,
+  `헤드 길이: ${style.headline.maxLen}자 안팎 ±${style.headline.tolerance}자`,
+  `금지 — 은유(${style.forbidden.metaphor.words.join("·")}), 과장(${style.forbidden.hype.words.join("·")}), 영문 라벨(${style.forbidden.englishLabels.words.join("·")}), 대구 패턴(${style.forbidden.parallelSlogan.patterns.join("·")})`,
+  `금지 기호: ${style.symbols.ban.join(" ")} 및 행두 ${style.symbols.banLinePrefix.map((s) => JSON.stringify(s)).join("·")} — 콤마·괄호·콜론으로 대체`,
+  `[[...]] 형광 마킹은 그대로 보존`,
+].join("\n");
+
 const PROMPTS = {
   chainDiagnose: T("prompts/chain-diagnose.md"),
   holeScan: T("prompts/hole-scan.md").split("{{RULES.HOLES}}").join(holesText),
   formStudy: T("prompts/form-study.md").split("{{RULES.RELWORDS}}").join(relText),
+  headlineRewrite: T("prompts/headline-rewrite.md").split("{{RULES.STYLE}}").join(styleText),
 };
 
 // ── 주입 ──

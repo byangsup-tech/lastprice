@@ -3,7 +3,13 @@ import type { FormTemplate } from "./index";
 import { arr } from "./index";
 import { chartPlate } from "../chrome";
 
-interface P { pts: { l: string; v: number }[]; note?: string; unit?: string }
+interface P {
+  pts: { l: string; v: number }[];
+  note?: string;
+  unit?: string;
+  /** 강조 박스 (v0.3.2 옵트인, 실물 백포트) — from~to 점 구간을 problem색 점선 박스로 감쌈 */
+  emphasisBox?: { from: number; to: number };
+}
 
 export const trend: FormTemplate = {
   id: "trend",
@@ -55,6 +61,15 @@ export const trend: FormTemplate = {
     });
     if (p.note) {
       slide.addText(p.note, { x: X(n - 1) - 2.2, y: Y(pts[n - 1].v) - 0.62, w: 2.2, h: 0.24, margin: 0, fontFace: theme.font, fontSize: 11.5, bold: true, color: c.ours, align: "right" });
+    }
+    if (p.emphasisBox) {
+      const f = Math.min(Math.max(p.emphasisBox.from, 0), n - 1);
+      const t = Math.min(Math.max(p.emphasisBox.to, f), n - 1);
+      const ys = pts.slice(f, t + 1).map((d) => Y(d.v));
+      slide.addShape("roundRect", {
+        x: X(f) - 0.35, y: Math.min(...ys) - 0.42, w: X(t) - X(f) + 0.7, h: Math.max(...ys) - Math.min(...ys) + 0.66,
+        rectRadius: 0.06, fill: { type: "none" }, line: { color: c.problem, width: 1.25, dashType: "dash" },
+      });
     }
   },
 };

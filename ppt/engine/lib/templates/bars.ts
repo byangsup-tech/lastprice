@@ -15,6 +15,10 @@ interface P {
   callout?: { text: string; at?: number };
   emphasisBox?: { at: number };
   finalTag?: { text: string; role: string };
+  /** 범례 스와치 (v0.3.2 옵트인) — 계열 3개 이상이면 자동. 켜면 첫 그룹 직접 라벨을 대체 (룰북 §6 차트 규정) */
+  legend?: boolean;
+  /** 전 계열 값 라벨 (v0.3.2 옵트인) — 기본은 마지막 계열(당사)만 */
+  dataLabels?: boolean;
 }
 
 export const bars: FormTemplate = {
@@ -57,6 +61,19 @@ export const bars: FormTemplate = {
       const maxV = Math.max(...p.groups.flatMap((g) => g.vs), p.baseline?.v ?? 0, 1);
       const n = p.groups.length;
       const slot = 10.9 / n;
+      const useLegend = p.legend ?? p.series.length >= 3;
+      if (useLegend) {
+        // 범례 스와치 (실물 백포트) — 우상단, 계열 순서대로
+        let lx = 12.35;
+        [...p.series].reverse().forEach((s) => {
+          const lw = s.label.length * 0.135 + 0.3;
+          lx -= lw;
+          slide.addText(s.label, { x: lx, y: plateY + 0.12, w: lw, h: 0.22, margin: 0, fontFace: theme.font, fontSize: 8.5, color: c.legacyDark, align: "left" });
+          lx -= 0.2;
+          slide.addShape("rect", { x: lx, y: plateY + 0.15, w: 0.16, h: 0.16, fill: { color: roleColor(theme, s.role) }, line: { type: "none" } });
+          lx -= 0.14;
+        });
+      }
       if (p.baseline) {
         const by = BASE - (HMAX * p.baseline.v) / maxV;
         slide.addShape("line", { x: 1.35, y: by, w: 10.9, h: 0, line: { color: c.legacyBar, width: 0.75, dashType: "dash" } });
@@ -71,9 +88,13 @@ export const bars: FormTemplate = {
           const bx = cx - totalW / 2 + si * (bw + 0.06);
           const color = roleColor(theme, p.series![si].role);
           slide.addShape("rect", { x: bx, y: BASE - bh, w: bw, h: bh, fill: { color }, line: { type: "none" } });
-          // 직접 라벨 (범례 대체, V5): 첫 그룹 막대 위에 계열명
-          if (i === 0) {
+          // 직접 라벨 (범례 대체, V5): 첫 그룹 막대 위에 계열명 — 범례를 켜면 생략
+          if (i === 0 && !useLegend) {
             slide.addText(p.series![si].label, { x: bx - 0.45, y: BASE - bh - 0.5, w: bw + 0.9, h: 0.22, margin: 0, fontFace: theme.font, fontSize: 8.5, color: c.legacyDark, align: "center" });
+          }
+          // 전 계열 값 라벨 (v0.3.2 옵트인) — 당사 외 계열은 막대 위 작은 라벨
+          if (p.dataLabels && si !== g.vs.length - 1) {
+            slide.addText(String(v), { x: bx - 0.2, y: BASE - bh - 0.24, w: bw + 0.4, h: 0.2, margin: 0, fontFace: theme.font, fontSize: 8.5, color: c.legacyDark, align: "center" });
           }
           // 마지막 계열(당사)에 값 라벨
           if (si === g.vs.length - 1) {
@@ -107,6 +128,16 @@ export const bars: FormTemplate = {
     }
 
     // 주석 레이어 — 차트당 1곳 (V2: callout·emphasisBox 동시 금지는 validate가 차단)
+    if (p.emphasisBox) {
+      // 강조 박스 (실물 백포트) — 대상 슬롯을 problem색 점선 라운드 박스로 감쌈 (라벨 포함)
+      const nSlots = p.groups?.length ?? p.items?.length ?? 0;
+      const at = Math.min(Math.max(p.emphasisBox.at, 0), Math.max(nSlots - 1, 0));
+      const slot = 10.9 / Math.max(nSlots, 1);
+      slide.addShape("roundRect", {
+        x: 1.35 + slot * at + 0.06, y: BASE - HMAX - 0.34, w: slot - 0.12, h: HMAX + 0.94,
+        rectRadius: 0.06, fill: { type: "none" }, line: { color: c.problem, width: 1.25, dashType: "dash" },
+      });
+    }
     if (p.callout) {
       const cw = Math.min(4.2, p.callout.text.length * 0.115 + 0.6);
       const cx0 = 4.6;
