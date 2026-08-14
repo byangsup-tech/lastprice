@@ -123,6 +123,13 @@ function validP(tpl, p) {
       if (!Array.isArray(v) || v.some((x) => !x || !x.t || !x.d)) return false;
       if (f.min && v.length < f.min) return false;
       if (f.max && v.length > f.max) return false;
+    } else if (f.type === "perfRow[]") {
+      // 표 행 — 셀은 string 또는 {t, tone?}, cells 수는 p.cols와 일치 (generic [] 폴백은 이걸 못 잡음)
+      const cellOk = (cl) => (typeof cl === "string" ? cl.length > 0 : !!cl && typeof cl.t === "string" && cl.t.length > 0);
+      if (!Array.isArray(v) || v.some((r) => !r || typeof r.l !== "string" || !r.l || !Array.isArray(r.cells) || !r.cells.every(cellOk))) return false;
+      if (f.min && v.length < f.min) return false;
+      if (f.max && v.length > f.max) return false;
+      if (Array.isArray(p.cols) && v.some((r) => r.cells.length !== p.cols.length)) return false;
     } else if (f.type.endsWith("[]")) {
       if (!Array.isArray(v)) return false;
       if (f.min && v.length < f.min) return false;
@@ -511,6 +518,34 @@ function SkStacked({ p }) {
   </g>);
 }
 
+function SkGridTable({ p, head }) {
+  const cols = (p.cols || []).slice(0, 6), rows = (p.rows || []).slice(0, 7);
+  const labelW = 96, colW = 330 / Math.max(cols.length, 1), x0 = 28, y0 = 60, hh = 24, rh = Math.min(32, 176 / Math.max(rows.length, 1));
+  const cellT = (cl) => (typeof cl === "string" ? cl : (cl || {}).t || "");
+  const cellTone = (cl) => (cl && typeof cl === "object" && cl.tone ? cl.tone : null);
+  const toneColor = (tone) => (tone === "problem" ? C.err : tone === "legacy" || tone === "legacyDark" ? C.gray : C.tealDark);
+  return (<g>
+    {p.unit && <text x={x0 + labelW + cols.length * colW} y={y0 - 6} fontSize="9" fill={C.gray} textAnchor="end">{trunc(p.unit, 12)}</text>}
+    <rect x={x0} y={y0} width={labelW} height={hh} fill={C.ink} />
+    <text x={x0 + labelW / 2} y={y0 + 16} fontSize="10" fill="#fff" textAnchor="middle" fontWeight="700">{head}</text>
+    {cols.map((t, j) => (<g key={j}>
+      <rect x={x0 + labelW + j * colW} y={y0} width={colW} height={hh} fill={j === p.hiCol ? C.teal : C.ink} />
+      <text x={x0 + labelW + j * colW + colW / 2} y={y0 + 16} fontSize="10" fill="#fff" textAnchor="middle" fontWeight="700">{trunc(t, 6)}</text>
+    </g>))}
+    {rows.map((r, i) => (<g key={i}>
+      <rect x={x0} y={y0 + hh + i * rh} width={labelW} height={rh} fill={r.hi ? C.tealSoft : C.grayTint} stroke={C.line} />
+      <text x={x0 + 6} y={y0 + hh + i * rh + rh / 2 + 4} fontSize="10" fontWeight="700" fill={r.hi ? C.tealDark : C.ink}>{trunc(r.l, 8)}</text>
+      {(r.cells || []).slice(0, cols.length).map((cl, j) => {
+        const tone = cellTone(cl);
+        return (<g key={j}>
+          <rect x={x0 + labelW + j * colW} y={y0 + hh + i * rh} width={colW} height={rh} fill={r.hi || j === p.hiCol ? C.tealSoft : C.card} stroke={C.line} />
+          <text x={x0 + labelW + j * colW + colW / 2} y={y0 + hh + i * rh + rh / 2 + 4} fontSize="10" fontWeight={tone ? "700" : "400"} fill={tone ? toneColor(tone) : C.ink} textAnchor="middle">{trunc(cellT(cl), 7)}</text>
+        </g>);
+      })}
+    </g>))}
+  </g>);
+}
+
 function Sketch({ tpl, p, title }) {
   let body = null;
   try {
@@ -530,6 +565,8 @@ function Sketch({ tpl, p, title }) {
     else if (tpl === "waterfall") body = <SkWaterfall p={p} />;
     else if (tpl === "cycle") body = <SkCycle p={p} />;
     else if (tpl === "stacked") body = <SkStacked p={p} />;
+    else if (tpl === "perf_table") body = <SkGridTable p={p} head="지표" />;
+    else if (tpl === "compare_table") body = <SkGridTable p={p} head="구분" />;
     else body = <text x="240" y="150" fontSize="12" fill={C.gray} textAnchor="middle">(스케치 없음 — 실물 추출 폼, 정식 렌더는 빌드에서)</text>;
   } catch {
     body = <text x="240" y="150" fontSize="12" fill={C.err} textAnchor="middle">스케치 렌더 실패 — 파라미터 형태 확인</text>;

@@ -1,0 +1,47 @@
+{
+  "_expect": "에러 3건: params(cells 열 수 불일치), params(hiCol 범위), layout(미지원 판형)",
+  "schemaVersion": "deck-spec/1",
+  "meta": {
+    "title": "음성 4 표 형태",
+    "deckLabel": "음성 4",
+    "org": "default",
+    "layout": "a4v",
+    "fileName": "neg4.pptx"
+  },
+  "slides": [
+    {
+      "id": "n1",
+      "template": "perf_table",
+      "label": "형태 위반 표",
+      "head": {
+        "runs": [
+          {
+            "t": "셀 수가 열 수와 어긋난 표는 검증에서 차단됨"
+          }
+        ]
+      },
+      "p": {
+        "cols": [
+          "계획",
+          "실적"
+        ],
+        "hiCol": 5,
+        "rows": [
+          {
+            "l": "지표 하나",
+            "cells": [
+              "10"
+            ]
+          },
+          {
+            "l": "지표 둘",
+            "cells": [
+              "10",
+              "12"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

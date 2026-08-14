@@ -386,6 +386,73 @@
           "req": false
         }
       }
+    },
+    {
+      "tpl": "perf_table",
+      "name": "실적표",
+      "triggers": [
+        "계획 대비",
+        "달성률",
+        "전년 대비",
+        "증감",
+        "실적 요약"
+      ],
+      "quant": true,
+      "pSpec": {
+        "cols": {
+          "type": "string[]",
+          "min": 2,
+          "max": 5,
+          "req": true
+        },
+        "rows": {
+          "type": "perfRow[]",
+          "min": 2,
+          "max": 7,
+          "req": true
+        },
+        "unit": {
+          "type": "string",
+          "req": false
+        },
+        "hiCol": {
+          "type": "int",
+          "req": false
+        }
+      }
+    },
+    {
+      "tpl": "compare_table",
+      "name": "비교표",
+      "triggers": [
+        "계열사",
+        "사별",
+        "항목별 비교",
+        "나란히 놓으면"
+      ],
+      "quant": true,
+      "pSpec": {
+        "cols": {
+          "type": "string[]",
+          "min": 2,
+          "max": 6,
+          "req": true
+        },
+        "rows": {
+          "type": "perfRow[]",
+          "min": 2,
+          "max": 7,
+          "req": true
+        },
+        "unit": {
+          "type": "string",
+          "req": false
+        },
+        "hiCol": {
+          "type": "int",
+          "req": false
+        }
+      }
     }
   ],
   "derived": [
@@ -559,7 +626,8 @@
     "milestone": "{ col, label }",
     "lvObj": "{ l: string, v: number }",
     "lObj": "{ l: string }",
-    "stackBar": "{ l, parts: [{name, v}] }"
+    "stackBar": "{ l, parts: [{name, v}] }",
+    "perfRow": "{ l, sub?, cells: (string | {t, tone?})[](cols 수 일치), hi?: bool }"
   },
   "quantRule": "정량 판정은 메시지 문장 기준 — 수치·비교·추세가 문장에 명시돼야 차트형(bars/trend) 의무, 정량 함의만 있으면 도해 허용",
   "textAnswer": "글이 정답인 메시지 존재(정의·원칙·요청). 실패는 글이 아니라 문단으로 쓰는 것 — textgrid가 제3의 정당한 형태",

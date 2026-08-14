@@ -1,5 +1,17 @@
 # 룰북 개정 이력
 
+## v0.3.0 (2026-08-14)
+
+경영관리 보고장표 대비 MVP 1차 — 표 폼 세트. (MVP 전체 계획: 표 → 데이터 반입 → 팩 추출 도구 → 문체 교정 배선)
+
+- §8 관계어 2종 추가: **실적표**(perf_table — 계획 대비·달성률·전년 대비·증감), **비교표**(compare_table — 계열사·사별·항목별 비교). 둘 다 정량(차트형). 증감 착색은 셀 tone(role)만으로 하고 수치 표기는 입력 그대로 — 도구는 수치를 만들지 않는다
+- §6 역할색 추가: **녹색 = 달성·개선·정상 상태** (`ok`/`okBg` — 실물 승인 덱 「New종신 PoC 상정」 유래). 파랑=당사 **주체** 지목과 구분되는 **상태** 지목. 당사 열 강조는 여전히 oursBg
+- 판형 예약: `visual.json`에 `canvas` 블록 신설(정본화), `meta.layout` 필드 예약 — 현재 "wide"만 지원, 그 외는 validate가 거부 (A4 세로는 백로그)
+- rules 쌍 개정: `core/relwords.json`(templates 17종 + typeDefs perfRow), `org/{default,_template}/colors.json`(ok·okBg), `org/{default,_template}/visual.json`(canvas)
+- 엔진: 공용 표 그리드 `engine/lib/table.ts` 신설(후속 판정표 재사용 예정), 템플릿 등록 23종. 아티팩트: 스케치 SkGridTable, validP perfRow 검사(cells 열 수 일치)
+- 검증 덱: showcase에 표 2장 추가(s7·s8), 음성 테스트 neg-4(cells 불일치·hiCol 범위·미지원 판형 — 에러 3건 기대)
+- 실물급 템플릿 4종 백로그를 `rulebook/BACKLOG-v0.3.md`로 반입 (좌표 분해 기록 — 첫 실안건 요구 시 착수)
+
 ## v0.2.2 (2026-08-09)
 
 덱보드 아티팩트 실사용 패치. 규칙 변경은 1건이고 나머지는 도구 결함 수정이다.

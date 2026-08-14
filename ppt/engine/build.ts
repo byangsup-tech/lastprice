@@ -13,7 +13,8 @@ export async function buildDeck(spec: DeckSpec, specPath: string, orgOverride?: 
   const rules = loadRules(orgOverride || spec.meta.org);
   const theme = themeOf(rules);
   const pres = new pptxgen();
-  pres.layout = "LAYOUT_WIDE";
+  // 판형 정본은 visual.json canvas — 미지원 판형은 validate가 선차단 (A4 세로 등은 후속)
+  pres.layout = rules.visual.canvas?.layout ?? "LAYOUT_WIDE";
   if (spec.meta.author) pres.author = spec.meta.author;
   pres.title = spec.meta.title;
 

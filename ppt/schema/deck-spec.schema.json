@@ -17,6 +17,7 @@
         "date": { "type": "string" },
         "org": { "type": "string", "description": "rules/org 팩 — 생략 시 active.json" },
         "archetype": { "type": "string" },
+        "layout": { "type": "string", "enum": ["wide"], "description": "판형 (v0.3.0 예약) — 생략 또는 wide(16:9). 다른 판형은 미지원으로 검증 실패" },
         "fileName": { "type": "string", "pattern": "\\.pptx$" }
       }
     },
@@ -31,7 +32,7 @@
           "id": { "type": "string", "description": "덱 내 유일 — 덱보드 chain 줄 id와 일치시킴" },
           "template": {
             "type": "string",
-            "description": "등록 템플릿: layer, hub, before_after, flow, matrix, funnel, bars, trend, textgrid, compare_rows, compare_cards, feature_cards, journey, cover"
+            "description": "등록 템플릿 정본은 engine/lib/templates/index.ts TEMPLATES — v0.3.0 기준 23종 (관계어 17 + 파생 4 + 구조 장 2)"
           },
           "label": { "type": "string", "description": "상단 큰 제목(주제 라벨) — 기능명·주제 명사, 시나리오 헤더 금지" },
           "pill": { "type": "string", "description": "우상단 캡슐" },

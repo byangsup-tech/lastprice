@@ -9,6 +9,8 @@ export interface DeckMeta {
   /** rules/org 팩 이름 — 생략 시 rules/active.json */
   org?: string;
   archetype?: string;
+  /** 판형 (v0.3.0 예약) — 생략 또는 "wide". 다른 값은 미지원으로 검증 실패 */
+  layout?: string;
   /** 출력 파일명 (.pptx) — 스펙 파일과 같은 디렉터리에 생성 */
   fileName: string;
 }

@@ -43,6 +43,9 @@ export function validateSpec(spec: DeckSpec, rules: Rules): Finding[] {
   if (spec.schemaVersion !== "deck-spec/1") add("error", "-", "schema", `schemaVersion은 "deck-spec/1" (현재 ${spec.schemaVersion})`);
   if (!spec.meta?.title || !spec.meta?.deckLabel || !spec.meta?.fileName) add("error", "-", "schema", "meta.title·deckLabel·fileName 필수");
   if (spec.meta?.fileName && !spec.meta.fileName.endsWith(".pptx")) add("error", "-", "schema", "meta.fileName은 .pptx로 끝나야 함");
+  if (spec.meta?.layout && spec.meta.layout !== "wide") {
+    add("error", "-", "layout", `meta.layout "${spec.meta.layout}" 미지원 — 현재 "wide"(16:9)만 (판형 확장은 백로그)`);
+  }
   if (!Array.isArray(spec.slides) || spec.slides.length === 0) {
     add("error", "-", "schema", "slides가 비어 있음");
     return F;

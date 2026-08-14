@@ -1,8 +1,23 @@
 {
   "_doc": "시각 규정 파라미터(룰북 §6) — 조직 팩. 벤치마크 1개 유래(과적합 주의, 표본 확대 계획: 점검결과 항목 2).",
+  "canvas": {
+    "layout": "LAYOUT_WIDE",
+    "w": 13.33,
+    "h": 7.5,
+    "_note": "판형 정본 — A4 세로 등 다른 판형은 후속 (validate가 미지원 layout을 거부)"
+  },
   "conventions": {
-    "repeat": ["색 의미", "✕/○ 스탬프", "제목 밴드", "형광 시스템"],
-    "formVariation": { "rule": "연속 2장 이상 동일 템플릿 금지", "scope": "본문 장(표지·목차·부록 제외)", "primaryTest": "본문 영역 템플릿 id 동일 여부" }
+    "repeat": [
+      "색 의미",
+      "✕/○ 스탬프",
+      "제목 밴드",
+      "형광 시스템"
+    ],
+    "formVariation": {
+      "rule": "연속 2장 이상 동일 템플릿 금지",
+      "scope": "본문 장(표지·목차·부록 제외)",
+      "primaryTest": "본문 영역 템플릿 id 동일 여부"
+    }
   },
   "emptyFrame": "모든 프레임은 차트·표·조건 줄·각주 중 하나 이상으로 채움 (화해 조항: ladder.json reconciliation)",
   "numbersPerClaim": {
@@ -11,9 +26,19 @@
     "assumedFootnote": "각주에 가정 근거 명기 (예: '* 등급당 5~6% 가정')",
     "aiPropagation": "AI·도구 생성 수치는 assumed 플래그 의무 — footnote 없으면 검증 실패 (F8)"
   },
-  "accentLimit": { "chromaticPerSlide": 1, "note": "역할색에 따른 지목(기능 구분)은 강조로 세지 않음 — 헤드 형광·강조 박스류가 대상" },
+  "accentLimit": {
+    "chromaticPerSlide": 1,
+    "note": "역할색에 따른 지목(기능 구분)은 강조로 세지 않음 — 헤드 형광·강조 박스류가 대상"
+  },
   "hlSystem": "전 장(본문 장) 시스템 적용 또는 전무 — 단발 금지",
-  "annotationLayer": { "maxPerChart": 1, "kinds": ["callout", "emphasisBox"], "simultaneous": false },
+  "annotationLayer": {
+    "maxPerChart": 1,
+    "kinds": [
+      "callout",
+      "emphasisBox"
+    ],
+    "simultaneous": false
+  },
   "chart": {
     "axisUnit": "축·단위 명기",
     "directLabel": "범례보다 직접 라벨 우선 — 계열 3개 이상 반복 등장 시 범례 허용",

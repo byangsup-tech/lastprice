@@ -31,6 +31,8 @@ export interface ColorRules {
 }
 
 export interface VisualRules {
+  /** 판형 정본 (v0.3.0) — 미지정 시 LAYOUT_WIDE. 다른 판형 지원은 후속 */
+  canvas?: { layout: string; w: number; h: number };
   conventions: { repeat: string[]; formVariation: { rule: string; scope: string; primaryTest: string } };
   numbersPerClaim: { required: boolean; assumedMark: string; assumedFootnote: string; aiPropagation: string };
   accentLimit: { chromaticPerSlide: number; note: string };

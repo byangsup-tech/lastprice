@@ -135,5 +135,18 @@ eq("bars v가 문자열이면 거부", T.validP("bars", { items: [{ l: "A", v: "
 eq("필수 필드 누락 거부", T.validP("layer", { items: ["a", "b", "c"] }), false);
 eq("min 미달 거부", T.validP("layer", { base: "토대", items: ["a"] }), false);
 
+console.log("\n[M1] 표 템플릿 2종 (rules v0.3.0)");
+eq("AI_TPLS 17종", T.AI_TPLS.size, 17);
+eq("perf_table 후보 편입", T.AI_TPLS.has("perf_table"), true);
+eq("compare_table 후보 편입", T.AI_TPLS.has("compare_table"), true);
+eq("tplName 실적표", T.tplName("perf_table"), "실적표");
+const tblOk = { cols: ["계획", "실적"], rows: [{ l: "신계약", cells: ["10", { t: "12", tone: "ok" }] }, { l: "손해율", cells: ["80%", "78%"] }] };
+eq("perfRow 정상", T.validP("perf_table", tblOk), true);
+eq("cells 열 수 불일치 거부", T.validP("perf_table", { cols: ["계획", "실적"], rows: [{ l: "a", cells: ["1"] }, { l: "b", cells: ["1", "2"] }] }), false);
+eq("빈 셀 거부", T.validP("perf_table", { cols: ["계획", "실적"], rows: [{ l: "a", cells: ["1", ""] }, { l: "b", cells: ["1", "2"] }] }), false);
+eq("행 1개 거부 (min 2)", T.validP("perf_table", { cols: ["계획", "실적"], rows: [{ l: "a", cells: ["1", "2"] }] }), false);
+eq("compare_table 6열 허용", T.validP("compare_table", { cols: ["당사", "A", "B", "C", "D", "E"], rows: [{ l: "a", cells: ["1", "2", "3", "4", "5", "6"] }, { l: "b", cells: ["1", "2", "3", "4", "5", "6"] }] }), true);
+eq("perf_table 6열 거부 (max 5)", T.validP("perf_table", { cols: ["a", "b", "c", "d", "e", "f"], rows: [{ l: "a", cells: ["1", "2", "3", "4", "5", "6"] }, { l: "b", cells: ["1", "2", "3", "4", "5", "6"] }] }), false);
+
 console.log(`\n${"=".repeat(50)}\n통과 ${pass} / 실패 ${fail}`);
 process.exit(fail ? 1 : 0);

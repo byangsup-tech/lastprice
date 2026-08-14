@@ -23,6 +23,8 @@ import { waterfall } from "./waterfall";
 import { cycle } from "./cycle";
 import { stacked } from "./stacked";
 import { section } from "./section";
+import { perfTable } from "./perf-table";
+import { compareTable } from "./compare-table";
 
 export interface FormTemplate {
   id: string;
@@ -56,6 +58,8 @@ export const TEMPLATES: Record<string, FormTemplate> = {
   cycle,
   stacked,
   section,
+  perf_table: perfTable,
+  compare_table: compareTable,
 };
 
 /** 형태 검사 공용 헬퍼 */
