@@ -1,0 +1,57 @@
+{
+  "_doc": "슬라이드↔데이터 바인딩. 반복 보고 루프: data/*.tsv 교체 → npm run deck:data → deck:build",
+  "maps": [
+    {
+      "slideId": "m1",
+      "table": "지표",
+      "template": "kpi_tiles"
+    },
+    {
+      "slideId": "m2",
+      "table": "실적",
+      "template": "perf_table",
+      "labelCol": "지표",
+      "sub": "비고",
+      "cols": [
+        "계획",
+        "실적",
+        "달성률"
+      ],
+      "derive": {
+        "달성률": {
+          "ratio": [
+            "실적",
+            "계획"
+          ],
+          "fmt": "pct0"
+        }
+      },
+      "tone": {
+        "col": "달성률",
+        "okAt": 100,
+        "problemBelow": 100
+      },
+      "hiCol": 2
+    },
+    {
+      "slideId": "m3",
+      "table": "계열사",
+      "template": "compare_table",
+      "labelCol": "구분",
+      "cols": [
+        "당사",
+        "A생명",
+        "B생명"
+      ],
+      "hiCol": 0
+    },
+    {
+      "slideId": "m4",
+      "table": "추이",
+      "template": "trend",
+      "labelCol": "월",
+      "valueCol": "월초",
+      "note": "증가 추세"
+    }
+  ]
+}

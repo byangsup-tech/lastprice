@@ -38,6 +38,7 @@ export function validateSpec(spec: DeckSpec, rules: Rules): Finding[] {
   const style = rules.style;
   const nouns = rules.exceptions.properNouns;
   const roles = rules.colors.roles;
+  const quantTpls = new Set(rules.relwords.templates.filter((t) => t.quant).map((t) => t.tpl));
 
   // ── 스키마 층 ──
   if (spec.schemaVersion !== "deck-spec/1") add("error", "-", "schema", `schemaVersion은 "deck-spec/1" (현재 ${spec.schemaVersion})`);
@@ -132,6 +133,14 @@ export function validateSpec(spec: DeckSpec, rules: Rules): Finding[] {
       if (!fn.includes("예시") && !fn.includes("가정")) {
         add("error", s.id, "assumed", "assumed=true인데 각주에 가정 근거('예시'/'가정') 없음 — (예시) 전파 의무 (룰북 §6)");
       }
+    }
+
+    // 실데이터/가정치 이분법 (v0.3.1 — 룰북 §9)
+    if (s.source) {
+      if (!s.source.label) add("error", s.id, "source", "source.label 필수 — 출처 표기 없는 실데이터 금지");
+      if (s.assumed) add("error", s.id, "source", "source와 assumed 동시 지정 — 실데이터는 가정치가 아님, 하나만 남길 것 (룰북 §9)");
+    } else if (quantTpls.has(s.template) && !s.assumed && !s.footnote) {
+      add("warning", s.id, "source", "정량 장인데 출처 표기 전무 — source(실데이터) 또는 assumed+각주(가정치) 필요 (룰북 §9)");
     }
   }
 

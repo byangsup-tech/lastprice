@@ -1,0 +1,78 @@
+{
+  "_expect": "에러 2건: source+assumed 동시 지정, source.label 누락",
+  "schemaVersion": "deck-spec/1",
+  "meta": {
+    "title": "음성 5 출처 이분법",
+    "deckLabel": "음성 5",
+    "org": "default",
+    "fileName": "neg5.pptx"
+  },
+  "slides": [
+    {
+      "id": "n1",
+      "template": "bars",
+      "label": "이분법 위반",
+      "head": {
+        "runs": [
+          {
+            "t": "실데이터와 가정치를 동시에 주장하면 차단됨"
+          }
+        ]
+      },
+      "p": {
+        "items": [
+          {
+            "l": "A",
+            "v": 10
+          },
+          {
+            "l": "B",
+            "v": 12
+          }
+        ]
+      },
+      "source": {
+        "label": "예시 데이터(테스트용)",
+        "asOf": "2026-07"
+      },
+      "assumed": true,
+      "footnote": "* 수치는 가정(예시), 근거 작성 필요"
+    },
+    {
+      "id": "n2",
+      "template": "trend",
+      "label": "출처 표기 누락",
+      "head": {
+        "runs": [
+          {
+            "t": "출처 라벨이 비면 미표기로 판정됨"
+          }
+        ]
+      },
+      "p": {
+        "pts": [
+          {
+            "l": "1월",
+            "v": 1
+          },
+          {
+            "l": "2월",
+            "v": 2
+          },
+          {
+            "l": "3월",
+            "v": 3
+          },
+          {
+            "l": "4월",
+            "v": 4
+          }
+        ]
+      },
+      "source": {
+        "label": ""
+      },
+      "footnote": "* 자료: (누락)"
+    }
+  ]
+}

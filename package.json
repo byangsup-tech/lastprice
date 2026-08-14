@@ -10,6 +10,7 @@
     "crawl": "tsx scripts/crawl.ts",
     "deck:validate": "tsx ppt/engine/validate.ts",
     "deck:build": "tsx ppt/engine/build.ts",
+    "deck:data": "tsx ppt/engine/data-import.ts",
     "deck:qa": "tsx ppt/engine/render-qa.ts",
     "deck:text": "python3 ppt/engine/extract-text.py",
     "artifact:build": "node ppt/artifact/build-artifact.mjs",

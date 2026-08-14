@@ -33,6 +33,21 @@ npm run artifact:build                                       # rules 수정 후 
 
 덱보드 사용: `artifact/deckboard.jsx` 전문을 복사해 claude.ai 대화에서 "이 코드로 아티팩트를 만들어줘"로 게시(갱신도 동일). 이후 파이프라인 1~4단계는 덱보드에서, 5~6단계는 내보낸 deck-spec을 Claude Code에 붙여넣어 진행 (`CLAUDE.md`의 제작 워크플로).
 
+## 반복 보고 루프 (v0.3.1 — 정형 보고용)
+
+같은 포맷에 숫자만 갱신되는 월간·주간 보고는 **스펙과 데이터를 분리**한다:
+
+```
+decks/<덱>/deck-spec.json     ← 폼·헤드 (체인에서 확정, 잘 안 바뀜)
+decks/<덱>/data/*.tsv         ← 수치 (엑셀에서 범위 복사 → 텍스트 저장)
+decks/<덱>/data/sources.json  ← 테이블별 출처·기준일 (label은 실제 자료명)
+decks/<덱>/data.map.json      ← 슬라이드 ↔ 테이블 바인딩 (최초 1회 작성)
+```
+
+매 주기 절차: `data/*.tsv` 수치 교체 → `npm run deck:data -- decks/<덱>` → `npm run deck:build`.
+반입된 장은 source(출처·기준일)와 자동 각주가 기록되고 assumed가 해제된다 — 실데이터는 가정치가 아니다 (룰북 §9).
+예제: `decks/sample-monthly/` (kpi_tiles·실적표·비교표·추이 4장, 달성률 파생 열·tone 임계 포함).
+
 ## 부서 이동 절차 (조직 팩 교체)
 
 바뀌는 것은 조직 색깔(문체·역할색·시각 파라미터·예외 목록)이고, 방법론(`rules/core/`)과 코드(`engine/`, `artifact/src/`)는 그대로다.

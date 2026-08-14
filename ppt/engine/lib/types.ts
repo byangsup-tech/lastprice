@@ -39,6 +39,8 @@ export interface SlideSpec {
   band?: string;
   /** 템플릿별 파라미터 — 색은 role 키만, hex 금지 */
   p: Record<string, unknown>;
+  /** 실데이터 출처 (v0.3.1 — deck:data가 기록). assumed와 상호 배타 — 실데이터는 가정치가 아님 */
+  source?: { label: string; file?: string; asOf?: string };
   stamps?: StampSpec[];
   /** AI·도구가 채운 가정 수치 포함 여부 — true면 footnote에 가정 명기 의무 (F8) */
   assumed?: boolean;

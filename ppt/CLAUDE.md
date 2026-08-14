@@ -30,6 +30,7 @@
 입력은 항상 deck-spec JSON (`schema/deck-spec.schema.json`). 사용자가 스펙을 붙여넣거나 덱보드에서 내보낸 것을 전달하면:
 
 1. 스펙을 `decks/<덱이름>/deck-spec.json`으로 저장
+1.5. `decks/<덱이름>/data/`와 `data.map.json`이 있으면 `npm run deck:data -- decks/<덱이름>` 선행 — 실데이터를 p에 주입하고 source·출처 각주를 기록, assumed 해제 (반복 보고는 데이터 교체 → deck:data → deck:build)
 2. `npm run deck:validate -- decks/<덱이름>/deck-spec.json` — 에러 전건을 표로 보고, 자동 수정 가능 항목은 수정안 제시
 3. `npm run deck:build -- decks/<덱이름>/deck-spec.json` — pptx 생성 (스펙의 meta.fileName으로 같은 디렉터리에 출력)
 4. `npm run deck:qa -- decks/<덱이름>/<파일>.pptx` — 렌더 QA. soffice가 있으면 슬라이드 PNG 생성 → PNG를 Read로 열어 육안 점검, 없으면 텍스트 추출 대조만 수행되고 "렌더 미수행"으로 보고됨 (그 사실을 사용자에게 명시할 것)
@@ -51,7 +52,7 @@ pptxgenjs 주의: 색은 `#` 없는 6자리 hex(Theme 경유), `LAYOUT_WIDE`(13.
 ## 금지
 
 - 실명(동료·협업자) 기록 금지
-- 통계·수치 창작 금지 — AI·도구가 채운 수치는 assumed 플래그 + "(예시)" + 각주 없이는 스펙에 넣지 않음
+- 통계·수치 창작 금지 — AI·도구가 채운 수치는 assumed 플래그 + "(예시)" + 각주 없이는 스펙에 넣지 않음. 실데이터는 `deck:data`로 반입해 source(출처·기준일)를 기록 — source와 assumed는 상호 배타 (v0.3.1)
 - 체인 없이 장 단위 제작 착수 금지
 - deck-spec·엔진 코드에 색 hex 직접 기입 금지 (colors.json role만)
 - `artifact/deckboard.jsx` 직접 수정 금지 (template + artifact:build 경유)

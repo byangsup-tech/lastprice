@@ -1,5 +1,16 @@
 # 룰북 개정 이력
 
+## v0.3.1 (2026-08-14)
+
+경영관리 MVP 2차 — 데이터 반입 경로. 숫자를 손으로 옮겨 적는 한 반복 보고는 불성립한다.
+
+- §9 실데이터 반입 신설: `decks/<덱>/data/*.tsv|csv` + `sources.json`(출처·기준일) + `data.map.json`(바인딩) → `npm run deck:data`가 p 주입·source 기록·출처 각주 생성·assumed 해제. 도구는 계산(달성률 파생·tone 임계)만 하고 수치를 창작하지 않음. 멱등 — 반복 보고 = 데이터 교체 → deck:data → deck:build
+- deck-spec에 `slides[].source {label(필수), file?, asOf?}` 추가 (additive — deck-spec/1 유지)
+- validate 신설: **source+assumed 동시 지정 error**(실데이터/가정치 이분법), source.label 누락 error, 정량 장(quant 템플릿)에 source·assumed·각주 전무 시 warning
+- 지원 변환 5종: perf_table·compare_table(cols 선택·파생 열·tone 임계·sub·hiRow), kpi_tiles(고정 열), bars·trend(labelCol·valueCol)
+- 검증 덱: `decks/sample-monthly/`(반복 보고 픽스처 — 가상 데이터, sources label에 테스트용 명기), 음성 neg-5(이분법 2건 검출)
+- 규칙 소비자: 엔진 validate·deck:data. 덱보드는 무변경(데이터·제작은 Claude Code 단계 — 역할 분담 유지)
+
 ## v0.3.0 (2026-08-14)
 
 경영관리 보고장표 대비 MVP 1차 — 표 폼 세트. (MVP 전체 계획: 표 → 데이터 반입 → 팩 추출 도구 → 문체 교정 배선)
