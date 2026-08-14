@@ -52,11 +52,11 @@ decks/<덱>/data.map.json      ← 슬라이드 ↔ 테이블 바인딩 (최초 
 
 바뀌는 것은 조직 색깔(문체·역할색·시각 파라미터·예외 목록)이고, 방법론(`rules/core/`)과 코드(`engine/`, `artifact/src/`)는 그대로다.
 
-1. **재추출** — 새 부서 벤치마크 덱 3~5건을 Claude Code에 주고 요청: "이 덱들에서 문체 규정(종결어미·금칙·기호)과 역할색·시각 파라미터를 추출해 `rules/org/_template/` 4파일 형식으로 `rules/org/<새팩>/`을 만들어줘. 룰북 §5·§6도 같은 내용으로 개정 초안을 써줘." (pptx는 텍스트 추출 + 색 상수 분석으로 판독)
+1. **재추출** (v0.3.1 도구화) — `npm run pack:probe -- <새부서덱1.pptx> <덱2.pptx> ...`로 판형·색 히스토그램·폰트·종결·기호 통계를 뽑고, probe.json + 텍스트 추출을 `prompts/pack-draft.md`의 판정 원칙과 함께 Claude Code에 줘서 `rules/org/<새팩>/` 4파일 + 룰북 §5·§6 초안을 받는다 (통계는 후보, 확정은 대화 — PDF만 있을 때의 대체 절차도 pack-draft.md에 있음)
 2. **전환** — `rules/active.json`의 `"org"`를 새 팩 이름으로 변경
 3. **룰북 개정** — `rulebook/룰북_v0.2.md` §5·§6을 초안으로 교체, CHANGELOG 기록
 4. **아티팩트 재조립** — `npm run artifact:build` → 새 `deckboard.jsx`를 claude.ai에 붙여넣기
-5. **회귀 확인** — `npm run deck:build -- ppt/decks/sample-newlife/deck-spec.json` — 골든 스펙이 새 팩의 색·문체 검사로 재판정·재렌더되는지 확인
+5. **회귀 확인** — 골든(`decks/sample-newlife`)과 **showcase**(`decks/template-showcase`) 재빌드. showcase는 전 템플릿을 사용하고 미정의 role은 즉시 에러가 나므로, **showcase 빌드 성공 = 새 팩 role 키 완전성 증명**
 
 합계: 신규 4파일 + 수정 2파일 + 자동 재생성 1파일. 과거 팩은 `rules/org/`에 남아 롤백·비교 가능.
 

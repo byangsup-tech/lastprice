@@ -14,7 +14,8 @@
     "deck:qa": "tsx ppt/engine/render-qa.ts",
     "deck:text": "python3 ppt/engine/extract-text.py",
     "artifact:build": "node ppt/artifact/build-artifact.mjs",
-    "artifact:test": "node ppt/artifact/test-logic.mjs"
+    "artifact:test": "node ppt/artifact/test-logic.mjs",
+    "pack:probe": "python3 ppt/engine/pack-probe.py"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
