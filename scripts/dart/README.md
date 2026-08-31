@@ -73,6 +73,24 @@ PHASE0_REPORT.md      RUN_REPORT.md      DART_추출결과.xlsx
 
 `raw_path` + `raw_sha256` 로 **디스크의 그 바이트까지** 역추적된다.
 
+## 수집 결과 복원
+
+이 저장소에는 **수집 결과가 압축된 채로 함께 커밋**돼 있습니다. `emit` 이 `raw/` 의 순수
+함수라 원본만 있으면 전 산출물을 **네트워크·API 키 없이** 되살릴 수 있습니다.
+
+```bash
+tar xzf dart_out/raw.tar.gz -C dart_out/     # 원본 JSON·ZIP 3,096개 (48MB)
+gunzip -k dart_out/*.csv.gz                  # 큰 CSV 5종
+python3 scripts/dart/run.py emit             # text/ 230MB + XLSX 83MB 까지 복원, 약 4분
+```
+
+검증됨: 복원한 CSV 20종이 원본과 **바이트 단위로 일치**합니다.
+
+저장소에 그대로 들어 있어 GitHub 웹에서 바로 볼 수 있는 것: `PHASE0_REPORT.md`,
+`RUN_REPORT.md`, `corp_codes.csv`, `12_지분관계.csv`, `99_미확보목록.csv`,
+`01_기업개황.csv`, 주요정보 5종(04~10), `call_log.csv`.
+`text/` 와 `.xlsx` 는 재생성 가능해 커밋하지 않습니다.
+
 ## 설계 원칙 (지키는 불변식)
 
 1. **고정 컬럼 목록을 쓰지 않는다.** 응답 키의 합집합으로 컬럼을 만든다. 그래서

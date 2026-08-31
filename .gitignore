@@ -43,9 +43,23 @@ next-env.d.ts
 # daycare data cache
 .cache/
 
-# DART 수집기 산출물 (원본 ZIP 이 건당 수십 MB, 팽창 XML 은 100MB 급)
-/dart_out/
+# DART 수집기 산출물
+# 원격 컨테이너는 회수되면 사라지므로, 요구사항("raw 원본 삭제 금지")을 지키려면
+# raw/ 를 압축해 커밋해야 한다. emit 이 raw/ 의 순수 함수라 raw.tar.gz 하나면
+# text/·XLSX 를 포함한 전 산출물을 네트워크·API 키 없이 복원할 수 있다.
+/dart_out/text/
+/dart_out/*.xlsx
+/dart_out/raw/
+/dart_out/*.log
+/dart_out/corp_code_overrides.csv
 
 # python (scripts/dart 수집기)
 __pycache__/
 *.py[cod]
+
+# 큰 CSV 는 .gz 만 커밋 (동일 내용 중복 방지)
+/dart_out/11_원문추출.csv
+/dart_out/03b_재무제표_long.csv
+/dart_out/03_재무제표.csv
+/dart_out/02_공시목록.csv
+/dart_out/00_계정과목목록.csv

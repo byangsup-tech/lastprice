@@ -1,0 +1,4 @@
+﻿run_id,started_at,script_sha,key_fingerprint,argv
+run_20260831_150050,2026-08-31T15:00:50+09:00,8a7d8ba0ce0d,85312ceb,scripts/dart/run.py phase0
+run_20260831_152517,2026-08-31T15:25:17+09:00,861a9fb15403,85312ceb,scripts/dart/run.py phase1
+run_20260831_170752,2026-08-31T17:07:52+09:00,861a9fb15403,85312ceb,scripts/dart/run.py phase2
