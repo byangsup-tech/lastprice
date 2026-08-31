@@ -42,3 +42,6 @@ next-env.d.ts
 
 # daycare data cache
 .cache/
+
+# DART 수집기 산출물 (원본 ZIP 이 건당 수십 MB, 팽창 XML 은 100MB 급)
+/dart_out/
