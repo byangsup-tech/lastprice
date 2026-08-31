@@ -262,6 +262,17 @@ def assertions(out):
     check("rowspan/colspan 을 격자 추론 없이 보존",
           any(r.get("colspan") == "2" for r in doc))
     check("TE/TU 셀 태그 인식", {"te", "tu"} <= {r.get("cell_tag") for r in doc})
+    # DART 는 ZIP 멤버명 앞에 '/' 를 붙이기도 한다. traversal 로 오인해 거부하면
+    # 유일한 본문 멤버가 버려져 원문이 통째로 비게 된다 (실측 69개 중 21개가 해당).
+    # 2001년식 사업보고서는 '계열회사' 대신 '관계회사·자회사·기업집단'을 쓴다.
+    # 출범 시 계열사 구조가 최우선 산출이라 구시대 어휘를 놓치면 안 된다.
+    old = [r for r in doc if "관계회사 및 자회사" in r.get("section_title", "")]
+    check("2000년대 초 표기(관계회사·자회사)도 섹션으로 잡는다", bool(old))
+    check("구시대 표기는 제목으로 매칭된다",
+          bool(old) and any(r["match_scope"] == "title" for r in old))
+    slash_docs = {r["rcept_no"] for r in doc if r["member_selected"].startswith("/")}
+    check("멤버명 선행 슬래시 ZIP 도 본문을 추출한다", bool(slash_docs),
+          "선행 슬래시 문서에서 추출된 행 없음")
     check("섹션 매칭 실패에 대비해 문서 전문 보관",
           bool(glob.glob(os.path.join(out, "text/*/_full.txt"))))
     check("지분취득 추적 원문(주요사항보고서) 수집",

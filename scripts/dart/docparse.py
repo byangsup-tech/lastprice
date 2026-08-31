@@ -64,14 +64,27 @@ def decode_document(data: bytes):
 
 
 # ── ZIP ───────────────────────────────────────────────────────────────────
+def normalize_member(name: str) -> str:
+    """ZIP 멤버명을 정규화한다.
+
+    DART 는 멤버명 앞에 '/' 를 붙여 내려주는 경우가 있다(실측: 원문 ZIP 69개 중 21개).
+    선행 슬래시를 traversal 로 보고 거부하면 유일한 본문 멤버가 통째로 버려진다.
+    진짜 위험한 것은 '..' 이므로 그것만 막고 선행 구분자는 벗겨낸다.
+    """
+    n = name.replace("\\", "/").lstrip("/")
+    if len(n) > 1 and n[1] == ":":          # 윈도우 드라이브 문자
+        n = n[2:].lstrip("/")
+    return n
+
+
 def safe_members(zf: zipfile.ZipFile):
     """경로 traversal 과 압축폭탄을 거른다."""
     out = []
     for info in zf.infolist():
-        name = info.filename
         if info.is_dir():
             continue
-        if name.startswith("/") or ".." in name.replace("\\", "/").split("/"):
+        norm = normalize_member(info.filename)
+        if not norm or ".." in norm.split("/"):
             continue
         if info.compress_size and info.file_size / max(info.compress_size, 1) > MAX_ZIP_RATIO:
             continue
@@ -81,10 +94,11 @@ def safe_members(zf: zipfile.ZipFile):
 
 def pick_principal(members, rcept_no):
     """본문 멤버 선택: 이름 정확일치 우선, 없으면 최대 .xml."""
-    exact = [m for m in members if os.path.basename(m.filename).lower() == "%s.xml" % rcept_no.lower()]
+    exact = [m for m in members
+             if os.path.basename(normalize_member(m.filename)).lower() == "%s.xml" % rcept_no.lower()]
     if exact:
         return exact[0], "exact_name"
-    xmls = [m for m in members if m.filename.lower().endswith(".xml")]
+    xmls = [m for m in members if normalize_member(m.filename).lower().endswith(".xml")]
     if xmls:
         return max(xmls, key=lambda m: m.file_size), "largest_xml"
     if members:

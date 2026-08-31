@@ -89,16 +89,23 @@ DOC_XML = """<?xml version="1.0" encoding="euc-kr"?>
 <TR><TH>구분</TH><TH>비금융위험 위험조정</TH><TH>보험계약마진</TH></TR>
 <TR><TD>기초</TD><TD>437,393</TD><TD>2,541,801</TD></TR></TABLE>
 <TABLE><TR><TH>무관한 표</TH></TR><TR><TD>키워드 없음</TD></TR></TABLE></SECTION-1>
+<SECTION-1><TITLE>가. 관계회사 및 자회사의 투자지분 현황</TITLE>
+<P>2001년식 표기. 이 시기 보고서에는 '계열회사'라는 말이 나오지 않는다.</P>
+<TABLE><TR><TH>관계회사명</TH><TH>지분율</TH></TR>
+<TR><TD>신한은행</TD><TD>100.00</TD></TR></TABLE></SECTION-1>
 <SECTION-1><TITLE>4. 특수관계자와의 거래</TITLE>
 <P>2016년 중 한화건설로부터 한화손해보험 주식을 취득하였습니다.</P></SECTION-1>
 </BODY></DOCUMENT>"""
 
 
-def document_zip(rcept_no):
+def document_zip(rcept_no, lead_slash=False):
+    """lead_slash: DART 는 멤버명 앞에 '/' 를 붙여 내려주는 경우가 있다.
+    실측 69개 중 21개가 그랬고, traversal 로 오인해 거부하면 본문이 통째로 날아간다."""
+    pre = "/" if lead_slash else ""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("%s.xml" % rcept_no, DOC_XML.encode("euc-kr"))
-        z.writestr("%s_attach.xml" % rcept_no, b"<DOCUMENT><BODY></BODY></DOCUMENT>")
+        z.writestr("%s%s.xml" % (pre, rcept_no), DOC_XML.encode("euc-kr"))
+        z.writestr("%s%s_attach.xml" % (pre, rcept_no), b"<DOCUMENT><BODY></BODY></DOCUMENT>")
     return buf.getvalue()
 
 
@@ -214,9 +221,10 @@ def build(root):
                       _endpoint_rows(ep, cc, label, y) if y >= 2015 else NO_DATA)
 
     # 원문 ZIP
-    for rcept in ("20170331000001", "20260331000006", "20160415000777",
-                  "20160418000888", "20250331000005"):
-        _w(root, "document", "%s.zip" % rcept, document_zip(rcept), binary=True)
+    for i, rcept in enumerate(("20170331000001", "20260331000006", "20160415000777",
+                               "20160418000888", "20250331000005")):
+        _w(root, "document", "%s.zip" % rcept,
+           document_zip(rcept, lead_slash=(i % 2 == 1)), binary=True)
     _w(root, "document", "_default.zip", document_zip("00000000000000"), binary=True)
     _w(root, "fnlttXbrl", "_default.xml",
        '<?xml version="1.0" encoding="UTF-8"?><result><status>013</status>'
