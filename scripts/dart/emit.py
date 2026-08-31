@@ -425,47 +425,78 @@ def emit_documents(out_dir, metas, by_code, max_doc_bytes, doc_index=None):
 
         base = dict(corp_label=label, corp_code=meta_doc.get("corp_code", ""),
                     report_nm=meta_doc.get("report_nm", ""), rcept_dt=meta_doc.get("rcept_dt", ""),
-                    bsns_year_hint=meta_doc.get("bsns_year_hint", ""),
                     member_selected=info.get("member_selected", ""),
                     encoding_declared=info.get("encoding_declared", ""),
                     encoding_used=info.get("encoding_used", ""),
                     decode_replacements=info.get("decode_replacements", 0),
                     value_source="api")
-        for si, sec, hits in docparse.match_sections(sections, config.SECTION_KEYWORDS):
-            sl = docparse.slug(sec["title"])
+        pv = prov(out_dir, m, rcept, "api_row")
+        skipped = 0
+        for si, sec in enumerate(sections):
+            title_hits = [k for k in config.SECTION_KEYWORDS
+                          if docparse.normalize_for_match(k) in sec["title"]]
+            body_hits = [k for k in config.TABLE_KEYWORDS
+                         if k in docparse.section_body(sec)]
+            tbl_hits = {ti: docparse.table_keywords(t, config.TABLE_KEYWORDS)
+                        for ti, t in enumerate(sec["tables"])}
+            if not (title_hits or body_hits or any(tbl_hits.values())):
+                continue
+            scope = "title" if title_hits else ("table" if any(tbl_hits.values()) else "body")
+            sl = docparse.slug(sec["title"] or "section%03d" % si)
             tp = os.path.join(d, "%03d_%s.txt" % (si, sl))
-            body_text = "\n".join(sec["text_parts"])
+            body_text = docparse.section_body(sec)
             with open(tp, "w", encoding="utf-8") as f:
                 f.write(sec["title_raw"] + "\n\n" + body_text)
             common = dict(base, section_index=si, section_title=sec["title"],
                           section_title_raw=sec["title_raw"],
-                          matched_keyword="|".join(hits),
+                          matched_keyword="|".join(title_hits or body_hits),
+                          match_scope=scope, section_n_tables=len(sec["tables"]),
                           text_path=rel(out_dir, tp))
             rows.append(dict(common, kind="text", table_index="", row_index="",
                              cell_ord="", cell_tag="", rowspan="", colspan="",
-                             unit_hint="", cell_text="",
-                             text_chars=len(body_text),
-                             context=body_text[:200],
-                             **prov(out_dir, m, rcept, "api_row")))
+                             unit_hint="", cell_text="", table_matched_keyword="",
+                             table_extracted="", table_n_rows="",
+                             text_chars=len(body_text), context=body_text[:200], **pv))
+
+            # 제목만 걸린 큰 섹션(주석은 표가 250개를 넘는다)은 표 전체를 펼치지 않는다.
+            # 대신 표마다 색인 행을 남기므로 무엇이 있는지는 전부 보인다 — 삭제가 아니다.
+            small = len(sec["tables"]) <= config.MAX_TABLES_PER_SECTION
             for ti, tbl in enumerate(sec["tables"]):
+                hits = tbl_hits[ti]
+                extract = bool(hits) or (bool(title_hits) and small)
+                preview = " | ".join(c["text"][:20] for r in tbl["rows"][:2] for c in r[:6])
+                tcommon = dict(common, table_index=ti,
+                               unit_hint=tbl.get("unit_hint", ""),
+                               unit_hint_source=tbl.get("unit_hint_source", ""),
+                               table_matched_keyword="|".join(hits),
+                               table_extracted="Y" if extract else "N",
+                               table_n_rows=len(tbl["rows"]))
+                rows.append(dict(tcommon, kind="table_index", row_index="", cell_ord="",
+                                 cell_tag="", rowspan="", colspan="", cell_text="",
+                                 text_chars="", context=preview[:200], **pv))
+                if not extract:
+                    skipped += 1
+                    continue
                 xp = os.path.join(d, "table_%03d_%02d.xml" % (si, ti))
                 with open(xp, "w", encoding="utf-8") as f:
                     f.write(tbl.get("raw_xml", ""))
                 for ri, r in enumerate(tbl["rows"]):
                     for ci, cell in enumerate(r):
-                        rows.append(dict(common, kind="table", table_index=ti,
-                                         row_index=ri, cell_ord=ci, cell_tag=cell["tag"],
-                                         rowspan=cell["rowspan"], colspan=cell["colspan"],
-                                         unit_hint=tbl.get("unit_hint", ""),
-                                         cell_text=cell["text"], text_chars="",
-                                         context="", table_xml_path=rel(out_dir, xp),
-                                         **prov(out_dir, m, rcept, "api_row")))
+                        rows.append(dict(tcommon, kind="table", row_index=ri, cell_ord=ci,
+                                         cell_tag=cell["tag"], rowspan=cell["rowspan"],
+                                         colspan=cell["colspan"], cell_text=cell["text"],
+                                         text_chars="", context="",
+                                         table_xml_path=rel(out_dir, xp), **pv))
+        if skipped:
+            notes.append("%s: 키워드 미매칭 표 %d개는 셀 전개를 생략(색인 행은 남김, "
+                         "--extract-all-tables 로 강제 가능)" % (rcept, skipped))
     rows.sort(key=lambda r: (r.get("corp_label") or "", r.get("rcept_no") or "",
                              r.get("section_index") or 0))
     path, _ = write_csv(os.path.join(out_dir, "11_원문추출.csv"), rows,
                         ["corp_label", "corp_code", "rcept_no", "report_nm", "rcept_dt",
-                         "section_index", "section_title", "matched_keyword", "kind",
-                         "table_index", "row_index", "cell_ord", "cell_tag",
+                         "section_index", "section_title", "matched_keyword", "match_scope",
+                         "kind", "table_index", "table_matched_keyword", "table_extracted",
+                         "table_n_rows", "row_index", "cell_ord", "cell_tag",
                          "rowspan", "colspan", "unit_hint", "cell_text"])
     return path, notes
 

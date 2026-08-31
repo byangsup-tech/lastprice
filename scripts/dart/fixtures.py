@@ -83,10 +83,12 @@ DOC_XML = """<?xml version="1.0" encoding="euc-kr"?>
 <TR><TE>당기</TE><TE>전기</TE></TR>
 <TR><TD>한화손해보험</TD><TE>51.36</TE><TE>51.36</TE></TR>
 <TR><TU>캐롯손해보험</TU><TD>-</TD><TD>100.00</TD></TR></TABLE></SECTION-1>
-<SECTION-1><TITLE>3. 보험계약부채 및 계약서비스마진(CSM)</TITLE>
-<P>(단위: 억원)</P>
-<TABLE><TR><TH>구분</TH><TH>당기</TH></TR>
-<TR><TD>기말 계약서비스마진</TD><TD>1,234,567</TD></TR></TABLE></SECTION-1>
+<SECTION-1><TITLE>3. 기타 참고사항</TITLE>
+<P>주석 본문입니다.</P>
+<TABLE><TR><TH COLSPAN="2">(단위 : 백만원)</TH></TR>
+<TR><TH>구분</TH><TH>비금융위험 위험조정</TH><TH>보험계약마진</TH></TR>
+<TR><TD>기초</TD><TD>437,393</TD><TD>2,541,801</TD></TR></TABLE>
+<TABLE><TR><TH>무관한 표</TH></TR><TR><TD>키워드 없음</TD></TR></TABLE></SECTION-1>
 <SECTION-1><TITLE>4. 특수관계자와의 거래</TITLE>
 <P>2016년 중 한화건설로부터 한화손해보험 주식을 취득하였습니다.</P></SECTION-1>
 </BODY></DOCUMENT>"""

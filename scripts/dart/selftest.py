@@ -243,10 +243,22 @@ def assertions(out):
           any(r["child_match_method"] == "unmatched" for r in own))
 
     doc = read_csv(os.path.join(out, "11_원문추출.csv"))
-    csm = [r for r in doc if "계약서비스마진" in r.get("cell_text", "")]
-    check("원문에서 CSM 표 셀 추출", bool(csm))
-    check("표마다 단위 표기를 원문 그대로 포착",
-          bool(csm) and csm[0]["unit_hint"] == "(단위: 억원)", csm[0]["unit_hint"] if csm else "")
+    # 실측(동양생명 2024)에서 확인된 실패 모드: CSM 은 어떤 섹션 제목에도 없고
+    # 회사에 따라 「보험계약마진」으로 쓴다. 제목 기준 매칭만으로는 통째로 놓친다.
+    csm = [r for r in doc if r["kind"] == "table" and "보험계약마진" in r.get("cell_text", "")]
+    check("제목에 없는 CSM(보험계약마진)을 표 내용으로 찾아낸다", bool(csm))
+    check("표 내용 매칭임을 match_scope 로 표시",
+          bool(csm) and csm[0]["match_scope"] in ("table", "title"),
+          csm[0]["match_scope"] if csm else "")
+    check("표 안에 있는 단위 표기도 원문 그대로 포착",
+          bool(csm) and csm[0]["unit_hint"] == "(단위 : 백만원)",
+          csm[0]["unit_hint"] if csm else "")
+    idx = [r for r in doc if r["kind"] == "table_index"]
+    check("표는 전개하지 않아도 색인 행을 남긴다(삭제 아님)",
+          bool(idx) and any(r["table_extracted"] == "N" for r in idx),
+          "전개 %s" % sorted({r["table_extracted"] for r in idx}))
+    check("키워드 없는 표는 셀 전개를 생략",
+          any(r["table_extracted"] == "N" and not r["table_matched_keyword"] for r in idx))
     check("rowspan/colspan 을 격자 추론 없이 보존",
           any(r.get("colspan") == "2" for r in doc))
     check("TE/TU 셀 태그 인식", {"te", "tu"} <= {r.get("cell_tag") for r in doc})

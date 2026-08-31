@@ -149,6 +149,7 @@ class DartDocParser(HTMLParser):
         self._cur = {"title": normalize_for_match(title), "title_raw": title,
                      "text_parts": [], "tables": [], "start": off}
         self.sections.append(self._cur)
+        self._recent_text = []   # 단위 표기가 섹션 경계를 넘어 잘못 붙는 것을 막는다
 
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
@@ -157,7 +158,7 @@ class DartDocParser(HTMLParser):
             self._mode, self._buf = "title", []
         elif t in ("table", "table-group"):
             self._table = {"rows": [], "unit_hint": self._find_unit(),
-                           "caption": "", "start": self._off()}
+                           "unit_hint_source": "", "caption": "", "start": self._off()}
             self._table_start = self._off()
         elif t == "tr" and self._table is not None:
             self._row = []
@@ -189,6 +190,18 @@ class DartDocParser(HTMLParser):
             self._row = None
         elif t in ("table", "table-group") and self._table is not None:
             self._table["raw_xml"] = self.src[self._table_start:self._off() + len(tag) + 3]
+            # 단위 표기가 표 바깥 <P> 가 아니라 표의 첫 행 셀에 들어 있는 경우가 흔하다
+            # (실측: 동양생명 2024 주석의 CSM 롤포워드 표). 표 안에 있으면 그 표의 것이
+            # 확실하므로 앞 <P> 추정보다 우선한다. 원문 그대로만 싣고 환산하지 않는다.
+            for row in self._table["rows"][:3]:
+                found = next((c["text"] for c in row if "단위" in c["text"]), None)
+                if found:
+                    self._table["unit_hint"] = found
+                    self._table["unit_hint_source"] = "table_cell"
+                    break
+            else:
+                if self._table["unit_hint"]:
+                    self._table["unit_hint_source"] = "preceding_text"
             if self._cur is not None:
                 self._cur["tables"].append(self._table)
             self._table = None
@@ -252,6 +265,16 @@ def match_sections(sections, keywords):
         if hits:
             out.append((i, sec, hits))
     return out
+
+
+def table_keywords(table, keywords):
+    """표 안의 셀 텍스트에 걸린 키워드. 제목이 아니라 내용으로 표를 고르기 위한 것."""
+    blob = " ".join(c["text"] for r in table["rows"] for c in r)
+    return [k for k in keywords if k in blob]
+
+
+def section_body(section):
+    return " ".join(section["text_parts"])
 
 
 def slug(s, n=40):
