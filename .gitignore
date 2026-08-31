@@ -64,8 +64,6 @@ __pycache__/
 /dart_out/02_공시목록.csv
 /dart_out/00_계정과목목록.csv
 
-# 분석 핸드오프 키트 (큰 CSV 는 .gz 만 커밋)
-/handoff/원문_CSM롤포워드.csv
-/handoff/원문_계열구조.csv
-/handoff/00_계정과목목록.csv
-/handoff/재무_연결_당기.csv
+# 분석 핸드오프 키트 — zip 하나만 커밋한다 (34MB → 1.5MB, 개별 CSV 는 중복)
+/handoff/*
+!/handoff/dart-benchmark-kit.zip
