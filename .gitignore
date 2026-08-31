@@ -45,3 +45,7 @@ next-env.d.ts
 
 # DART 수집기 산출물 (원본 ZIP 이 건당 수십 MB, 팽창 XML 은 100MB 급)
 /dart_out/
+
+# python (scripts/dart 수집기)
+__pycache__/
+*.py[cod]
