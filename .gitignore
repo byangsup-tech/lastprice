@@ -63,3 +63,9 @@ __pycache__/
 /dart_out/03_재무제표.csv
 /dart_out/02_공시목록.csv
 /dart_out/00_계정과목목록.csv
+
+# 분석 핸드오프 키트 (큰 CSV 는 .gz 만 커밋)
+/handoff/원문_CSM롤포워드.csv
+/handoff/원문_계열구조.csv
+/handoff/00_계정과목목록.csv
+/handoff/재무_연결_당기.csv
