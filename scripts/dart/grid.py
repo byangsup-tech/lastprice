@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import config
 
+API_FIRST_YEAR = config.DOCUMENTED_FIRST_YEAR   # 2015 — Phase 0 에서 실측 확인됨
 
-def _year_in_window(entry, year, reprt_code):
+
+def _year_in_window(entry, year):
     """법인 생존기간 밖이면 '누락'이 아니라 '해당없음'이다.
 
     캐롯손해보험은 2025-10-01 소멸이라 FY2025 사업보고서가 애초에 존재하지 않는다.
@@ -22,9 +24,36 @@ def _year_in_window(entry, year, reprt_code):
         if year > end_year:
             return False, "소멸(%s) 이후" % at
         if year == end_year:
-            # 소멸 연도의 사업보고서는 통상 제출되지 않는다. 호출은 하되 013 을 정상으로 본다.
             return True, "소멸(%s) 연도 — 미제출 가능" % at
     return True, ""
+
+
+def years_for(entry, base_years):
+    """법인별 사업연도. 지주는 출범 구조 파악을 위해 API 최저연도까지 백필한다."""
+    ys = set(base_years)
+    # 지주: 출범 시 계열사 구조 파악용 백필.
+    # 선행법인: 존재 자체가 '통합 전' 비교용이라 소멸 이전 구간이 없으면 의미가 없다
+    #   (오렌지라이프는 2021-07 소멸이라 2021~ 만 보면 통째로 빈다).
+    if entry.get("group") in ("지주", "선행법인"):
+        ys |= set(config.HOLDING_BACKFILL_YEARS)
+    t = config.TARGETS_BY_LABEL.get(entry.get("label"), {})
+    ys |= set(t.get("extra_years") or [])
+    # API 가 닿지 않는 연도는 계획에 넣지 않는다 (호출해봐야 전부 013).
+    return sorted(y for y in ys if y >= API_FIRST_YEAR)
+
+
+def periods_for(entry, base_years, half_years):
+    """[(bsns_year, reprt_code, skip_note)] — 법인별 실제 조회 대상 기간."""
+    out = []
+    for y in years_for(entry, base_years):
+        ok, note = _year_in_window(entry, y)
+        out.append((y, config.REPRT_ANNUAL, note if ok else "SKIP:%s" % note))
+    for y in half_years:
+        if y < API_FIRST_YEAR:
+            continue
+        ok, note = _year_in_window(entry, y)
+        out.append((y, config.REPRT_HALF, note if ok else "SKIP:%s" % note))
+    return out
 
 
 def phase1_grid(entries, years, half_years):
@@ -33,13 +62,10 @@ def phase1_grid(entries, years, half_years):
     for e in entries:
         cc = e["corp_code"]
         plan.append((e, "company", {"corp_code": cc}, ""))
-
-        periods = [(y, config.REPRT_ANNUAL) for y in years] + \
-                  [(y, config.REPRT_HALF) for y in half_years]
-        for year, reprt in periods:
-            ok, note = _year_in_window(e, year, reprt)
-            if not ok:
-                plan.append((e, "_skip", {"bsns_year": str(year), "reprt_code": reprt}, note))
+        for year, reprt, note in periods_for(e, years, half_years):
+            if note.startswith("SKIP:"):
+                plan.append((e, "_skip", {"bsns_year": str(year), "reprt_code": reprt},
+                             note[5:]))
                 continue
             for ep in config.REPORT_ENDPOINTS:
                 plan.append((e, ep, {"corp_code": cc, "bsns_year": str(year),
@@ -52,15 +78,13 @@ def phase1_grid(entries, years, half_years):
 
 
 def expected_cells(entries, years, half_years):
-    """emit 이 공백을 판정할 때 쓰는 (label, corp_code, endpoint, params, skip_reason) 집합."""
+    """emit 이 공백을 판정할 때 쓰는 (label, endpoint, corp_code, year, reprt, fs) 집합."""
     cells = {}
     for e in entries:
         cc = e["corp_code"]
         cells[(e["label"], "company", cc, "", "", "")] = ""
-        for year, reprt in [(y, config.REPRT_ANNUAL) for y in years] + \
-                           [(y, config.REPRT_HALF) for y in half_years]:
-            ok, note = _year_in_window(e, year, reprt)
-            reason = "" if ok else "not_applicable_entity_window:%s" % note
+        for year, reprt, note in periods_for(e, years, half_years):
+            reason = ("not_applicable_entity_window:%s" % note[5:]) if note.startswith("SKIP:") else ""
             for ep in config.REPORT_ENDPOINTS:
                 cells[(e["label"], ep, cc, str(year), reprt, "")] = reason
             for fs in ("CFS", "OFS"):

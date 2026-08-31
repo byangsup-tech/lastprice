@@ -150,12 +150,12 @@ def build(root):
         # 공시목록: 사업보고서 + (신한이지는 감사보고서만) + 한화생명 주요사항보고서
         rows, n = [], 0
         if label == "신한이지손해보험":
-            for y in (2022, 2023, 2024, 2025):
+            for y in config.DEFAULT_YEARS:
                 n += 1
                 rows.append(dict(corp_cls="E", corp_code=cc, corp_name=label,
-                                 stock_code="", report_nm="감사보고서제출",
-                                 rcept_no="2025%04d%06d" % (n, n), flr_nm=label,
-                                 rcept_dt="%d0315" % y, rm=""))
+                                 stock_code="", report_nm="연결감사보고서제출",
+                                 rcept_no="%d03%02d%06d" % (y + 1, n, n), flr_nm=label,
+                                 rcept_dt="%d0315" % (y + 1), rm=""))
         else:
             for y in (2016, 2021, 2022, 2023, 2024, 2025):
                 n += 1
@@ -179,7 +179,10 @@ def build(root):
                    total_count=len(rows), total_page=1))
 
         insurer = t["entity_type"] in ("생보", "손보")
-        for y in config.DEFAULT_YEARS:
+        # 지주·선행법인 백필(2015~2020)까지 포함해 그리드 전체를 덮는다
+        all_years = sorted(set(config.DEFAULT_YEARS) | set(config.HOLDING_BACKFILL_YEARS)
+                           | set(t.get("extra_years") or []))
+        for y in all_years:
             for fs in ("CFS", "OFS"):
                 name = "%s_%d_11011_%s" % (cc, y, fs)
                 if label == "캐롯손해보험" and y >= 2025:

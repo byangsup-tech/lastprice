@@ -266,6 +266,10 @@ def assertions(out):
           bool(glob.glob(os.path.join(out, "text/*/_full.txt"))))
     check("지분취득 추적 원문(주요사항보고서) 수집",
           os.path.exists(os.path.join(out, "raw/document/20160415000777.zip")))
+    # 사업보고서가 0건인 법인은 감사보고서 원문으로 대체 수집되어야 한다
+    ez = [r for r in doc if r["corp_label"] == "신한이지손해보험"]
+    check("사업보고서 없는 법인은 감사보고서 원문으로 대체 수집",
+          bool(ez), "신한이지손해보험 원문 행 %d" % len(ez))
 
     ms = read_csv(os.path.join(out, "99_미확보목록.csv"))
     codes = {r["reason_code"] for r in ms}

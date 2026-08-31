@@ -114,12 +114,12 @@ def main(argv=None):
             phase1.run(client, a.out, years, half, only=only, endpoints=eps)
         elif a.command == "phase2":
             gate_phase0(a)
-            phase2.run(client, a.out, only=only)
+            phase2.run(client, a.out, base_years=years, only=only)
         elif a.command == "all":
             phase0.run(client, a.out)
             gate_phase0(a)
             phase1.run(client, a.out, years, half, only=only, endpoints=eps)
-            phase2.run(client, a.out, only=only)
+            phase2.run(client, a.out, base_years=years, only=only)
             for p in emit.emit_all(a.out, years, half, a.max_doc_bytes):
                 print("    %s" % p)
     except FatalDartError as e:

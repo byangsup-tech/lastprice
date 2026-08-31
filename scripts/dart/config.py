@@ -73,15 +73,24 @@ DOCUMENTED_FIRST_YEAR = 2015
 DEFAULT_YEARS = list(range(2021, 2026))   # 요청 사양: 2021~2025
 DEFAULT_HALF_YEARS = [2025, 2026]         # 반기까지 가능하면
 
+# 지주회사는 '출범 시 계열사 구조'가 핵심이라 API 최저연도(2015)까지 전부 백필한다.
+#
+# 다만 벽이 있다: 정기보고서 주요정보는 2015년부터라 신한(2001)·KB(2008)·
+# iM/DGB(2011)·구 우리금융(2001)의 **출범 연도 정형 데이터는 존재하지 않는다.**
+# 그 구간은 Phase 2 원문(첫 사업보고서의 「계열회사에 관한 사항」)이 유일한 경로다.
+# 우리금융지주(2019 설립)만 출범 연도가 API 범위 안에 있다.
+HOLDING_BACKFILL_YEARS = list(range(2015, 2021))
+
 
 def _t(label, group, entity_type, stock_code=None, aliases=(), active_from=None,
        active_to=None, status_note="현존", expect_est_dt=None, corp_code_hint=None,
-       note=""):
+       note="", extra_years=()):
     return dict(label=label, group=group, entity_type=entity_type,
                 stock_code=stock_code, aliases=list(aliases),
                 active_from=active_from, active_to=active_to,
                 status_note=status_note, expect_est_dt=expect_est_dt,
-                corp_code_hint=corp_code_hint, note=note)
+                corp_code_hint=corp_code_hint, note=note,
+                extra_years=list(extra_years))
 
 
 # ── 대상 17 법인 ──────────────────────────────────────────────────────────
@@ -107,9 +116,9 @@ TARGETS = [
        note="2019 신설 지주. 구 우리금융지주(2001~2014)와 동명이므로 반드시 종목코드로 매칭"),
     _t("한화생명보험", "지주", "생보", stock_code="088350",
        aliases=["한화생명", "한화생명보험", "대한생명보험"],
-       corp_code_hint="00113058",
+       corp_code_hint="00113058", extra_years=(2016, 2017),
        note="금융지주회사법상 지주회사가 아니다. 보험업법상 자회사 소유 구조. "
-            "보험지주 벤치마크로만 사용"),
+            "보험지주 벤치마크로만 사용. 2016 한화손해보험 지분 취득 연도를 추가 수집"),
 
     # ── 보험 자회사 9 ─────────────────────────────────────────────────────
     _t("신한라이프생명보험", "보험자회사", "생보",
@@ -192,8 +201,13 @@ FIRST_REPORT_EXPECT = {
     "KB금융": 2008,
     "iM금융지주": 2011,
     "우리금융지주": 2019,
-    "한화생명보험": 2016,  # 출범이 아니라 한화손보 지분 취득 시점
+    "우리금융지주(구)": 2001,   # 1기 지주 체제. 2014 해산이라 정형 API 범위 밖 — 원문이 유일
+    "한화생명보험": 2016,       # 출범이 아니라 한화손보 지분 취득 시점
 }
+
+# 사업보고서가 없는 사업연도는 감사보고서 원문으로 대체 수집한다.
+# (Phase 0 실측: 신한이지손보·캐롯손보는 사업보고서 0건, iM라이프는 FY2018 이후 중단)
+AUDIT_REPORT_KEYWORDS = ["연결감사보고서", "감사보고서"]   # 앞이 우선
 
 # 섹션 제목으로 거는 키워드
 SECTION_KEYWORDS = [
