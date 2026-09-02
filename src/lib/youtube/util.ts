@@ -135,10 +135,9 @@ export function kstStamp(date = new Date()): string {
   return `${iso.slice(0, 10).replace(/-/g, "")}-${iso.slice(11, 16).replace(":", "")}`;
 }
 
-/** 2자리 장면 번호 (1-based) — 100장면 이상이면 3자리 */
-export function sceneNo(index: number, total = 0): string {
-  const width = total >= 100 ? 3 : 2;
-  return String(index + 1).padStart(width, "0");
+/** 장면 파일 번호 (1-based, 항상 3자리: scene-001) — readdir 정렬·라우트 정규식과 일치 */
+export function sceneNo(index: number): string {
+  return String(index + 1).padStart(3, "0");
 }
 
 /** 단순 .env 파일 파서 — tsx 스크립트에서 .env.local을 읽을 때 사용 (이미 설정된 변수는 덮어쓰지 않음) */

@@ -85,9 +85,21 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
     },
     demo: input.demo || undefined,
   };
-  // 기존 작업이면 리서치 단계는 이미 끝난 것으로 표시
+  // 주제가 확정된 작업이므로 리서치 단계는 완료로 표시
   job.stages.research = { status: "done", finishedAt: now.toISOString(), note: "주제 확정" };
-  const p = jobPaths(id);
+  // 디렉터리 생성은 비재귀(EEXIST 감지) — 같은 id가 이미 있으면 접미사를 붙여 재시도
+  await fs.mkdir(JOBS_ROOT, { recursive: true });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = attempt === 0 ? id : `${id}-${attempt + 1}`;
+    try {
+      await fs.mkdir(jobPaths(candidate).root);
+      job.id = candidate;
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST" || attempt === 4) throw err;
+    }
+  }
+  const p = jobPaths(job.id);
   await fs.mkdir(p.logsDir, { recursive: true });
   await writeJsonFile(p.jobFile, job);
   return job;
@@ -180,23 +192,68 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-/** 실행 중인 다른 프로세스가 있으면 그 pid를, 아니면 null */
+/** 잠금이 이 시간보다 오래되면 프로세스가 살아 있어도 비정상으로 간주 */
+const LOCK_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+
+interface LockInfo {
+  pid: number;
+  startedAt: string;
+}
+
+function parseLock(raw: string): LockInfo | null {
+  try {
+    const j = JSON.parse(raw) as Partial<LockInfo>;
+    if (typeof j.pid === "number") return { pid: j.pid, startedAt: j.startedAt ?? "" };
+  } catch {
+    const pid = Number(raw.trim());
+    if (Number.isFinite(pid)) return { pid, startedAt: "" };
+  }
+  return null;
+}
+
+/** 비정상 종료된 실행이 남긴 'running' 단계를 failed로 정리 */
+async function reconcileStaleRun(jobId: string): Promise<void> {
+  const job = await loadJob(jobId);
+  if (!job) return;
+  let changed = false;
+  for (const stage of STAGES) {
+    if (job.stages[stage]?.status === "running") {
+      job.stages[stage] = {
+        ...job.stages[stage],
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+        error: "이전 실행이 비정상 종료됨 (프로세스 소멸)",
+      };
+      changed = true;
+    }
+  }
+  if (changed) await saveJob(job);
+}
+
+/** 실행 중인 다른 프로세스가 있으면 그 pid를, 아니면 null (죽은 잠금은 정리) */
 export async function lockHolder(jobId: string): Promise<number | null> {
   const p = jobPaths(jobId);
   const raw = await fs.readFile(p.lockFile, "utf-8").catch(() => null);
   if (!raw) return null;
-  const pid = Number(raw.trim());
-  if (Number.isFinite(pid) && pid > 0 && pidAlive(pid)) return pid;
-  await fs.rm(p.lockFile, { force: true }); // 죽은 프로세스의 잠금은 제거
+  const info = parseLock(raw);
+  const age = info?.startedAt ? Date.now() - Date.parse(info.startedAt) : 0;
+  if (info && info.pid > 0 && pidAlive(info.pid) && age < LOCK_MAX_AGE_MS) return info.pid;
+  await fs.rm(p.lockFile, { force: true });
+  await reconcileStaleRun(jobId);
   return null;
 }
 
+/**
+ * 원자적 잠금 획득 (O_EXCL). 성공 시 해제 함수 반환.
+ * 호출자는 finally·SIGINT·SIGTERM·uncaughtException에서 반드시 해제해야 한다 (pipeline.ts 참고).
+ */
 export async function acquireLock(jobId: string): Promise<() => Promise<void>> {
   const holder = await lockHolder(jobId);
   if (holder) throw new Error(`작업 ${jobId}은(는) 이미 실행 중입니다 (pid ${holder})`);
   const p = jobPaths(jobId);
   await fs.mkdir(p.root, { recursive: true });
-  await fs.writeFile(p.lockFile, String(process.pid), { flag: "wx" }).catch(async (err) => {
+  const info: LockInfo = { pid: process.pid, startedAt: new Date().toISOString() };
+  await fs.writeFile(p.lockFile, JSON.stringify(info), { flag: "wx" }).catch((err) => {
     if ((err as NodeJS.ErrnoException).code === "EEXIST") {
       throw new Error(`작업 ${jobId}은(는) 이미 실행 중입니다`);
     }
@@ -209,6 +266,67 @@ export async function acquireLock(jobId: string): Promise<() => Promise<void>> {
 
 export async function isRunning(jobId: string): Promise<boolean> {
   return (await lockHolder(jobId)) !== null;
+}
+
+// ── 단계 입력 해시 매니페스트 (idempotent skip) ───────────────
+
+export interface StageManifest {
+  stage: StageKey;
+  inputHash: string;
+  finishedAt: string;
+  outputs: string[];
+}
+
+/** 여러 입력(파일 내용·문자열)을 하나의 sha1로 */
+export async function hashInputs(parts: Array<string | { file: string }>): Promise<string> {
+  const { createHash } = await import("crypto");
+  const h = createHash("sha1");
+  for (const part of parts) {
+    if (typeof part === "string") h.update(part);
+    else {
+      try {
+        h.update(await fs.readFile(part.file));
+      } catch {
+        h.update(`missing:${part.file}`);
+      }
+    }
+    h.update("\u0000");
+  }
+  return h.digest("hex");
+}
+
+export async function readManifest(jobId: string, stage: StageKey): Promise<StageManifest | null> {
+  return readJsonFile<StageManifest>(jobPaths(jobId).manifest(stage));
+}
+
+export async function writeManifest(
+  jobId: string,
+  stage: StageKey,
+  inputHash: string,
+  outputs: string[],
+): Promise<void> {
+  await writeJsonFile(jobPaths(jobId).manifest(stage), {
+    stage,
+    inputHash,
+    finishedAt: new Date().toISOString(),
+    outputs,
+  } satisfies StageManifest);
+}
+
+/** 매니페스트가 있고 해시가 같고 산출물이 모두 존재하면 true (→ 단계 건너뜀) */
+export async function canSkipStage(jobId: string, stage: StageKey, inputHash: string): Promise<boolean> {
+  const m = await readManifest(jobId, stage);
+  if (!m || m.inputHash !== inputHash) return false;
+  for (const f of m.outputs) if (!(await fileExists(f))) return false;
+  return true;
+}
+
+/** stage와 그 이후 단계의 매니페스트 제거 (--force) */
+export async function clearManifestsFrom(jobId: string, stage: StageKey): Promise<void> {
+  const idx = STAGES.indexOf(stage);
+  for (const s of STAGES.slice(idx)) {
+    await fs.rm(jobPaths(jobId).manifest(s), { force: true });
+  }
 }
 
 // ── 로그 ─────────────────────────────────────────────────────

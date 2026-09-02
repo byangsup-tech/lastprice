@@ -11,9 +11,10 @@ import { sceneNo } from "./util";
  * └── jobs/<jobId>/           (gitignore)
  *     ├── job.json
  *     ├── script.json · metadata.json
- *     ├── audio/scene-XX.mp3 · scene-XX.json · timeline.json · narration.m4a
- *     ├── frames/scene-XX.png · scene-XX-overlay.png · plan.json · credits.json
- *     ├── clips/scene-XX.mp4 · list.txt · video-only.mp4
+ *     ├── audio/scene-001.mp3 · scene-001.json · timeline.json · narration.m4a
+ *     ├── frames/scene-001.png · scene-001-overlay.png · plan.json · credits.json
+ *     ├── clips/scene-001.mp4 · list.txt · video-only.mp4
+ *     ├── fonts/ (렌더 시 자막 폰트 복사 — 상대 경로로 ffmpeg에 전달)
  *     ├── subtitles.srt · captions.json
  *     ├── final.mp4 · thumbnail.png
  *     └── logs/pipeline.log · render.log
@@ -54,23 +55,23 @@ export function jobPaths(jobId: string) {
     scriptFile: path.join(root, "script.json"),
     metadataFile: path.join(root, "metadata.json"),
     audioDir,
-    sceneAudio: (index: number, total = 0) =>
-      path.join(audioDir, `scene-${sceneNo(index, total)}.mp3`),
-    sceneAudioMeta: (index: number, total = 0) =>
-      path.join(audioDir, `scene-${sceneNo(index, total)}.json`),
+    sceneAudio: (index: number) =>
+      path.join(audioDir, `scene-${sceneNo(index)}.mp3`),
+    sceneAudioMeta: (index: number) =>
+      path.join(audioDir, `scene-${sceneNo(index)}.json`),
     timelineFile: path.join(audioDir, "timeline.json"),
     narrationFile: path.join(audioDir, "narration.m4a"),
     mixedAudioFile: path.join(audioDir, "mixed.m4a"),
     framesDir,
-    sceneFrame: (index: number, total = 0) =>
-      path.join(framesDir, `scene-${sceneNo(index, total)}.png`),
-    sceneOverlay: (index: number, total = 0) =>
-      path.join(framesDir, `scene-${sceneNo(index, total)}-overlay.png`),
+    sceneFrame: (index: number) =>
+      path.join(framesDir, `scene-${sceneNo(index)}.png`),
+    sceneOverlay: (index: number) =>
+      path.join(framesDir, `scene-${sceneNo(index)}-overlay.png`),
     framePlanFile: path.join(framesDir, "plan.json"),
     creditsFile: path.join(framesDir, "credits.json"),
     clipsDir,
-    sceneClip: (index: number, total = 0) =>
-      path.join(clipsDir, `scene-${sceneNo(index, total)}.mp4`),
+    sceneClip: (index: number) =>
+      path.join(clipsDir, `scene-${sceneNo(index)}.mp4`),
     concatListFile: path.join(clipsDir, "list.txt"),
     videoOnlyFile: path.join(clipsDir, "video-only.mp4"),
     srtFile: path.join(root, "subtitles.srt"),
@@ -82,6 +83,9 @@ export function jobPaths(jobId: string) {
     pipelineLog: path.join(logsDir, "pipeline.log"),
     renderLog: path.join(logsDir, "render.log"),
     spawnLog: path.join(logsDir, "pipeline.out"),
+    fontsDir: path.join(root, "fonts"),
+    // 단계별 입력 해시 매니페스트 (idempotent skip 판단)
+    manifest: (stage: string) => path.join(root, `.${stage}.manifest.json`),
   };
 }
 
@@ -92,7 +96,7 @@ export type JobPaths = ReturnType<typeof jobPaths>;
  * 디렉터리 구분자는 '/'만 허용.
  */
 export const SERVABLE_FILE_RE =
-  /^(final\.mp4|thumbnail\.(png|jpg)|subtitles\.srt|script\.json|metadata\.json|frames\/scene-\d{2,3}(-overlay)?\.png|audio\/scene-\d{2,3}\.mp3|logs\/(pipeline\.log|render\.log|pipeline\.out))$/;
+  /^(final\.mp4|thumbnail\.(png|jpg)|subtitles\.srt|script\.json|metadata\.json|frames\/scene-\d{3}(-overlay)?\.png|audio\/scene-\d{3}\.mp3|logs\/(pipeline\.log|render\.log|pipeline\.out))$/;
 
 /** 허용 목록 검사 + jobDir 내부 확인 후 절대 경로 반환 (아니면 null) */
 export function resolveServableFile(jobId: string, name: string): string | null {

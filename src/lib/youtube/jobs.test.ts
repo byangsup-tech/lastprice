@@ -20,15 +20,15 @@ test("isValidJobId — 경로 탈출 차단", () => {
 });
 
 test("SERVABLE_FILE_RE — 허용 목록", () => {
-  for (const ok of ["final.mp4", "thumbnail.png", "frames/scene-01.png", "frames/scene-120-overlay.png", "audio/scene-07.mp3", "logs/pipeline.log"]) {
+  for (const ok of ["final.mp4", "thumbnail.png", "frames/scene-001.png", "frames/scene-120-overlay.png", "audio/scene-007.mp3", "logs/pipeline.log"]) {
     assert.ok(SERVABLE_FILE_RE.test(ok), ok);
   }
-  for (const bad of ["../job.json", "frames/../job.json", "job.json", ".lock", "frames/scene-1.png", "final.mp4/../x"]) {
+  for (const bad of ["../job.json", "frames/../job.json", "job.json", ".lock", "frames/scene-1.png", "frames/scene-01.png", "final.mp4/../x"]) {
     assert.equal(SERVABLE_FILE_RE.test(bad), false, bad);
   }
   assert.equal(resolveServableFile("20260902-1134-abc123", "../x"), null);
-  const resolved = resolveServableFile("20260902-1134-abc123", "frames/scene-01.png");
-  assert.ok(resolved && resolved.endsWith(path.join("20260902-1134-abc123", "frames", "scene-01.png")));
+  const resolved = resolveServableFile("20260902-1134-abc123", "frames/scene-001.png");
+  assert.ok(resolved && resolved.endsWith(path.join("20260902-1134-abc123", "frames", "scene-001.png")));
 });
 
 test("writeJsonFile/readJsonFile — 원자적 쓰기", async () => {

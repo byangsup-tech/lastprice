@@ -65,10 +65,10 @@ test("escapeHtml", () => {
   assert.equal(escapeHtml(`<a href="x">'&'</a>`), "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;");
 });
 
-test("sceneNo — 2자리, 100장면 이상이면 3자리", () => {
-  assert.equal(sceneNo(0), "01");
-  assert.equal(sceneNo(9, 40), "10");
-  assert.equal(sceneNo(0, 120), "001");
+test("sceneNo — 항상 3자리", () => {
+  assert.equal(sceneNo(0), "001");
+  assert.equal(sceneNo(9), "010");
+  assert.equal(sceneNo(119), "120");
 });
 
 test("parseDotenv — 주석·따옴표·export 처리", () => {

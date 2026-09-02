@@ -24,6 +24,7 @@ test("escapeFilterPath — 콜론·따옴표·쉼표 이스케이프", () => {
   assert.equal(escapeFilterPath("/a/b c.srt"), "/a/b c.srt");
   assert.equal(escapeFilterPath("C:\\x\\y.srt"), "C\\:/x/y.srt");
   assert.equal(escapeFilterPath("a,b[1].srt"), "a\\,b\\[1\\].srt");
+  assert.equal(escapeFilterPath("it's.srt"), "it'\\''s.srt");
 });
 
 test("concatListLine — 작은따옴표 처리", () => {

@@ -154,13 +154,14 @@ export async function probeDuration(file: string): Promise<number> {
 }
 
 /**
- * ffmpeg 필터 옵션 값(파일 경로 등) 이스케이프.
- * 필터 그래프에서 ':'는 옵션 구분자, '\'는 이스케이프, "'"는 인용 부호이므로 처리한다.
+ * ffmpeg 필터 옵션 값(파일 경로 등) 이스케이프 — 최후 수단.
+ * 원칙: ffmpeg를 jobDir을 cwd로 실행하고 상대 경로(subtitles.srt, fonts/)만 넘겨 이스케이프가 필요 없게 한다.
+ * 부득이 절대 경로를 쓸 때: ':'는 옵션 구분자라 '\:', 작은따옴표는 인용을 끊고 다시 여는 '\'' 로 처리.
  */
 export function escapeFilterPath(p: string): string {
   return p
     .replace(/\\/g, "/")
-    .replace(/'/g, "\\\\\\'")
+    .replace(/'/g, "'\\''")
     .replace(/:/g, "\\:")
     .replace(/,/g, "\\,")
     .replace(/\[/g, "\\[")
