@@ -92,7 +92,7 @@ async function download(url: string, dest: string): Promise<void> {
   if (!res.ok) throw new Error(`폰트 다운로드 HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 100_000) throw new Error("폰트 파일이 비정상적으로 작음");
-  await fs.mkdir(path.dirname(dest), { recursive: true });
+  await fs.mkdir(FONT_CACHE_DIR, { recursive: true });
   const tmp = `${dest}.part`;
   await fs.writeFile(tmp, buf);
   await fs.rename(tmp, dest);
@@ -110,13 +110,17 @@ export async function ensureFonts(): Promise<FontSet> {
   const regular = path.join(FONT_CACHE_DIR, "NotoSansKR-Regular.ttf");
   const bold = path.join(FONT_CACHE_DIR, "NotoSansKR-Bold.ttf");
   const errors: string[] = [];
-  for (const [file, weight] of [
-    [regular, 400],
-    [bold, 700],
-  ] as const) {
-    if (existsSync(file)) continue;
+  // 정적 경로로 개별 호출 (배열 순회는 번들 트레이서가 동적 접근으로 간주)
+  if (!existsSync(regular)) {
     try {
-      await download(await fetchTtfUrl(weight), file);
+      await download(await fetchTtfUrl(400), regular);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+  if (!existsSync(bold)) {
+    try {
+      await download(await fetchTtfUrl(700), bold);
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err));
     }

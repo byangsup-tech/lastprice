@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "child_process";
-import { createRequire } from "module";
+import { existsSync } from "fs";
 import type { ToolStatus } from "../types";
 
 /**
@@ -28,13 +28,10 @@ export function resolveFfmpeg(): ToolStatus {
   const candidates: string[] = [];
   if (process.env.FFMPEG_PATH?.trim()) candidates.push(process.env.FFMPEG_PATH.trim());
   candidates.push("ffmpeg");
-  try {
-    const req = createRequire(import.meta.url);
-    const installer = req("@ffmpeg-installer/ffmpeg") as { path: string };
-    if (installer?.path) candidates.push(installer.path);
-  } catch {
-    // 패키지 미설치 — 아래에서 에러 보고
-  }
+  // @ffmpeg-installer/<platform>-<arch>/ffmpeg — require 대신 경로를 직접 계산
+  // (동적 require는 Next 번들 트레이서가 프로젝트 전체를 끌어오고, 서버리스에선 바이너리가 없어도 라우트가 죽지 않게)
+  const installer = `${process.cwd()}/node_modules/@ffmpeg-installer/${process.platform}-${process.arch}/ffmpeg${process.platform === "win32" ? ".exe" : ""}`;
+  if (existsSync(installer)) candidates.push(installer);
   for (const bin of candidates) {
     const version = tryVersion(bin);
     if (version) {

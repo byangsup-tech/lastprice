@@ -9,6 +9,17 @@ const nextConfig: NextConfig = {
     // 유튜브 파이프라인 채널 프로필 (서버리스에서도 읽을 수 있게 번들에 포함)
     "/api/youtube/**": ["./content/youtube/channel.json"],
   },
+  // 유튜브 파이프라인 산출물·캐시(영상·음성·폰트)와 ffmpeg 바이너리는 서버리스 번들에서 제외
+  // (빌드 머신에 .cache/fonts 등이 있으면 트레이서가 함께 담으려 한다)
+  outputFileTracingExcludes: {
+    "/api/youtube/**": [
+      "./content/youtube/jobs/**",
+      "./.cache/**",
+      "./node_modules/@ffmpeg-installer/**",
+      "./node_modules/.cache/**",
+    ],
+    "/youtube/**": ["./content/youtube/jobs/**", "./.cache/**"],
+  },
   // 유튜브 파이프라인의 네이티브/바이너리 의존성은 번들링하지 않고 Node require로 로드
   // (playwright-core는 Next 기본 외부 패키지 목록에 이미 포함)
   serverExternalPackages: ["@ffmpeg-installer/ffmpeg", "msedge-tts"],
