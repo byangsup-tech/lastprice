@@ -56,7 +56,12 @@ export default function JobActionBar({
   };
 
   const confirmUpload = async () => {
-    const iso = publishAt ? new Date(publishAt).toISOString() : undefined;
+    const parsed = publishAt ? new Date(publishAt) : null;
+    if (parsed && Number.isNaN(parsed.getTime())) {
+      setError("예약 공개 시각 형식이 올바르지 않습니다");
+      return;
+    }
+    const iso = parsed ? parsed.toISOString() : undefined;
     setUploadOpen(false);
     await run({
       from: "upload",
