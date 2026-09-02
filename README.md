@@ -134,3 +134,101 @@ src/lib/insurance/     # sources(레지스트리), rss(파서), naver/dart(클�
 src/app/insurance/     # 대시보드 UI
 src/app/api/insurance/ # GET /api/insurance/feed
 ```
+
+---
+
+# 🎬 유튜브 롱폼 스튜디오 (`/youtube`, `npm run yt`)
+
+주제 리서치부터 대본·음성·자막·영상 합성·썸네일·업로드까지 한 번에 이어지는 롱폼(8~15분) 자동 제작 파이프라인.
+API 키가 하나도 없어도 동작하고(템플릿 대본 · Edge TTS · HTML 카드), 키를 넣을수록 품질이 올라갑니다.
+
+```
+research ──▶ script ──▶ voice ──▶ visuals ──▶ render ──▶ thumbnail ──▶ upload
+ 구글트렌드    Claude     Edge TTS   HTML 카드    ffmpeg      1280×720     YouTube
+ 뉴스·자동완성  (템플릿)   (OpenAI·   +Pexels     자막·BGM     Chromium     Data API
+ 유튜브·네이버            ElevenLabs) Chromium    켄번즈·챕터              (예약 공개)
+```
+
+## 빠른 시작
+
+```bash
+npm install
+npm run yt -- doctor        # ffmpeg·Chromium·한글 폰트·키 상태 점검 (폰트 자동 다운로드)
+npm run yt -- demo          # 키 없이 70초짜리 데모 영상 제작 → content/youtube/jobs/<id>/final.mp4
+npm run yt -- research      # 주제 후보 25개 (점수·수요·경쟁·적합도·근거)
+npm run yt -- new --candidate 1          # 1위 후보로 작업 생성   (또는 --topic "제목")
+npm run yt -- run --job <id>             # 대본 → 음성 → 시각자료 → 합성 → 썸네일
+npm run yt -- run --job <id> --upload --privacy private --publish-at 2026-09-10T09:00:00+09:00
+npm run yt -- run --auto                 # 리서치 → 자동 선정 → 전체 제작 (적합 주제 없으면 생성 안 함)
+npm run dev                              # http://localhost:3000/youtube 대시보드
+```
+
+각 단계는 입력 해시로 idempotent — 같은 입력이면 건너뛰고, `--force`로 다시 만듭니다.
+`npm run yt -- script --job <id>`처럼 단계 하나만 실행할 수도 있습니다.
+대시보드에서는 대본을 직접 고친 뒤 '음성·영상 생성'을 눌러 승인 단계를 둘 수 있습니다.
+
+## 키 설정 (전부 선택)
+
+| 키 | 용도 | 없으면 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 대본 생성(`claude-opus-5`)·리서치 후보 재정렬 | 템플릿 초안 대본 (파이프라인 검증용) |
+| `PEXELS_API_KEY` | 장면별 스톡 사진/영상 배경 | 테마 색 HTML 카드 |
+| `YOUTUBE_API_KEY` (+`YT_CHANNEL_ID`) | 리서치 검색량·경쟁도, 채널 업로드 이력으로 중복 방지 | 키 없는 소스만 사용 |
+| `NAVER_CLIENT_ID/SECRET` | 네이버 뉴스 신호 (기존 보험 데스크 키 재사용) | 생략 |
+| `OPENAI_API_KEY` / `ELEVENLABS_API_KEY`+`ELEVENLABS_VOICE_ID` | Edge 대신 다른 TTS (`YT_TTS_PROVIDER`) | Edge TTS (무료) |
+| `YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN` | 업로드·썸네일·자막 등록 | 업로드 단계 건너뜀 |
+
+리서치 키 없는 소스: 구글 트렌드(KR) RSS, 구글 뉴스 RSS(프로필 키워드), 구글/유튜브 자동완성, 위키백과 많이 본 문서.
+
+### YouTube 업로드 토큰 발급
+
+1. Google Cloud Console에서 프로젝트 생성 → **YouTube Data API v3** 사용 설정
+2. OAuth 동의 화면(외부) 구성 후 **테스트 사용자**에 본인 계정 추가
+3. 사용자 인증 정보 → OAuth 클라이언트 ID → 유형 **데스크톱 앱** → ID/Secret을 `.env.local`에
+4. `npm run yt -- auth` → 브라우저에서 동의 → 출력된 `YOUTUBE_REFRESH_TOKEN`을 `.env.local`에
+   (앱이 '테스트' 상태면 토큰이 7일 후 만료 — 앱 게시 또는 주기적 재발급)
+
+`--publish-at`을 주면 유튜브 규칙에 따라 `private`으로 올라가고 지정 시각에 공개됩니다.
+커스텀 썸네일 등록은 전화번호 인증된 채널만 가능하며, 실패해도 업로드 자체는 성공으로 처리합니다.
+
+## 채널 프로필 — `content/youtube/channel.json`
+
+| 필드 | 설명 |
+|---|---|
+| `name`, `niche`, `audience`, `tone` | 대본 프롬프트에 그대로 반영 |
+| `keywords` | 리서치 뉴스 검색어 + 적합도(fit) 계산 (≤ 8개 권장) |
+| `avoid` | 제목·뉴스에 걸리면 후보 제외 (내장 연예·스포츠·사건 마커도 적용) |
+| `targetMinutes` | 목표 길이 — 분당 약 400자 기준으로 대본 분량 산정 |
+| `voice`, `voiceRate` | Edge 보이스(`ko-KR-InJoonNeural`/`ko-KR-SunHiNeural`)와 속도(`+5%`) |
+| `theme` | 카드·썸네일·진행 바 색상 |
+| `cta` | 아웃트로 멘트 |
+| `bgmPath` | 배경음악 mp3 (사이드체인 덕킹) — 저작권 확인 필수 |
+| `visualMode` | `auto`(Pexels 키 있으면 photos) / `cards` / `photos` / `videos` |
+
+## 산출물 — `content/youtube/jobs/<id>/` (gitignore)
+
+```
+job.json            단계 상태·옵션·산출물 경로
+script.json         대본 (훅 → 챕터 → 아웃트로, 장면별 나레이션·화면 문구·비주얼 키워드)
+metadata.json       유튜브 제목·설명(타임라인 챕터 포함)·태그
+audio/scene-001.mp3 …  장면별 나레이션 + 단어 타이밍(json) · timeline.json
+frames/scene-001.png … 장면 카드 · plan.json · credits.json(Pexels 출처)
+subtitles.srt       자막 (영상에 번인 + 업로드 시 자막 트랙 등록)
+final.mp4           1920×1080 25fps H.264/AAC (자막·진행 바·켄 번즈·BGM)
+thumbnail.png       1280×720
+logs/pipeline.log · logs/render.log
+```
+
+## GitHub Actions — `.github/workflows/youtube-longform.yml`
+
+`Actions → youtube-longform → Run workflow`에서 주제(비우면 자동 선정)·업로드 여부·공개 범위·예약 시각을 입력하면
+ubuntu 러너가 ffmpeg·Noto CJK·Chromium을 설치하고 전체 파이프라인을 실행합니다.
+결과(mp4·썸네일·대본·메타데이터·자막·로그)는 7일간 워크플로 아티팩트로 남고, Secrets에 키를 넣으면 업로드까지 됩니다.
+주간 자동 제작은 파일의 `schedule` 주석을 풀면 됩니다(사용한 주제 이력은 Actions 캐시로 유지).
+
+## 한계와 주의
+
+- 영상 합성은 로컬 CLI나 GitHub Actions에서만 실행됩니다. Vercel 등 서버리스 배포에서는 대시보드가 읽기 전용입니다.
+- 템플릿 모드 대본은 구조 검증용 초안입니다. 실제 채널 운영에는 `ANTHROPIC_API_KEY`를 설정하고, 대시보드에서 대본을 검토·수정한 뒤 음성 단계로 넘기세요.
+- Edge TTS는 마이크로소프트의 비공식 엔드포인트를 사용합니다. 서비스 변경 시 `YT_TTS_PROVIDER=openai|elevenlabs`로 전환할 수 있습니다.
+- BGM은 저작권이 확인된 음원만 사용하세요(YouTube 오디오 라이브러리 등). 스톡 사진·영상 출처(Pexels)는 설명문에 자동 표기됩니다.

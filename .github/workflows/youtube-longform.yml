@@ -1,0 +1,120 @@
+name: youtube-longform
+
+# 유튜브 롱폼 자동 제작 — 리서치 → 대본 → 음성 → 시각자료 → 합성 → 썸네일 → (선택) 업로드
+# 수동 실행(workflow_dispatch)이 기본. 키(Secrets) 설정 후 아래 schedule 주석을 풀면 주간 자동 제작.
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "주제 제목 (비우면 리서치로 자동 선정)"
+        required: false
+        type: string
+      upload:
+        description: "YouTube에 업로드 (YOUTUBE_* Secrets 필요)"
+        required: false
+        type: boolean
+        default: false
+      privacy:
+        description: "공개 범위"
+        required: false
+        type: choice
+        options: [private, unlisted, public]
+        default: private
+      publish_at:
+        description: "예약 공개 시각 (ISO 8601, 지정 시 private로 업로드)"
+        required: false
+        type: string
+  # schedule:
+  #   - cron: "0 21 * * 1" # 매주 화요일 06:00 KST
+
+permissions:
+  contents: read
+
+concurrency:
+  group: youtube-longform
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      YT_FONT_DIR: /usr/share/fonts/opentype/noto
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YT_CHANNEL_ID: ${{ secrets.YT_CHANNEL_ID }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Install ffmpeg + Korean fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+          ffmpeg -version | head -1
+
+      - name: Install Chromium (playwright-core)
+        run: npx playwright-core install --with-deps chromium
+
+      # 자동 선정 시 같은 주제를 다시 고르지 않도록 사용 이력을 실행 간에 유지
+      - name: Restore used topics
+        uses: actions/cache@v4
+        with:
+          path: content/youtube/used-topics.json
+          key: yt-used-topics-${{ github.run_id }}
+          restore-keys: |
+            yt-used-topics-
+
+      - name: Doctor
+        run: npm run yt -- doctor
+
+      - name: Create job
+        id: job
+        run: |
+          set -euo pipefail
+          FLAGS="--privacy ${{ inputs.privacy || 'private' }}"
+          if [ -n "${{ inputs.publish_at }}" ]; then FLAGS="$FLAGS --publish-at ${{ inputs.publish_at }}"; fi
+          if [ "${{ inputs.upload }}" = "true" ]; then FLAGS="$FLAGS --upload"; fi
+          if [ -n "${{ inputs.topic }}" ]; then
+            npm run yt -- new --topic "${{ inputs.topic }}" $FLAGS | tee new.log
+            JOB=$(grep -oE '작업 생성: [A-Za-z0-9._-]+' new.log | awk '{print $3}')
+          else
+            npm run yt -- research --refresh --limit 10
+            npm run yt -- run --auto --to research $FLAGS --no-refresh | tee auto.log || true
+            JOB=$(grep -oE '작업 [A-Za-z0-9._-]+$' auto.log | tail -1 | awk '{print $2}')
+          fi
+          if [ -z "$JOB" ]; then echo "적합한 주제가 없어 작업을 만들지 않았습니다"; echo "job=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "job=$JOB" >> "$GITHUB_OUTPUT"
+          echo "job id: $JOB"
+
+      - name: Run pipeline
+        if: steps.job.outputs.job != ''
+        run: npm run yt -- run --job "${{ steps.job.outputs.job }}" ${{ inputs.upload && '--upload' || '' }}
+
+      - name: Upload artifacts
+        if: always() && steps.job.outputs.job != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-${{ steps.job.outputs.job }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            content/youtube/jobs/${{ steps.job.outputs.job }}/final.mp4
+            content/youtube/jobs/${{ steps.job.outputs.job }}/thumbnail.*
+            content/youtube/jobs/${{ steps.job.outputs.job }}/script.json
+            content/youtube/jobs/${{ steps.job.outputs.job }}/metadata.json
+            content/youtube/jobs/${{ steps.job.outputs.job }}/subtitles.srt
+            content/youtube/jobs/${{ steps.job.outputs.job }}/job.json
+            content/youtube/jobs/${{ steps.job.outputs.job }}/logs/
