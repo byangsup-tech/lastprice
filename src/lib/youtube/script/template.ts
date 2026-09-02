@@ -173,7 +173,7 @@ export function buildTemplateOutput({ topic, profile }: TemplateInput): LlmScrip
     altTitles: [clampText(`${t} 한 번에 이해하기`, 60), clampText(`${t} 최근 소식과 체크포인트`, 60), clampText(`${t}, 무엇이 달라졌나`, 60)],
     description,
     tags: [...new Set([t, ...topic.keywords, ...profile.keywords.slice(0, 5)])].slice(0, 15),
-    thumbnail: { headline: clampText(t, 12), sub: "핵심 정리" },
+    thumbnail: { headline: clampText(t, 10), sub: "핵심 정리" },
     hook,
     chapters: [
       { title: "무슨 일이 있었나", scenes: chapter1Scenes },

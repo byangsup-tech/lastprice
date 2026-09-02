@@ -9,7 +9,7 @@
     "lint": "eslint",
     "crawl": "tsx scripts/crawl.ts",
     "yt": "tsx scripts/youtube.ts",
-    "test": "tsx --test \"src/lib/youtube/**/*.test.ts\""
+    "test": "tsx --test \"src/lib/youtube/**/*.test.ts\" \"src/app/api/youtube/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

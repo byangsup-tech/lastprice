@@ -230,8 +230,13 @@ const stageImpl: Record<StageKey, StageFn> = {
     const p = jobPaths(job.id);
     const script = await requireScript(job);
     const plan = await readJsonFile<FramePlan>(p.framePlanFile);
-    const firstPhoto = plan?.scenes.find((s) => s.credit)?.imagePath ?? "";
-    const hash = await hashInputs([JSON.stringify(script.thumbnail), script.title, firstPhoto, JSON.stringify(job.profile.theme)]);
+    // 스톡 사진이 바뀌면 썸네일도 다시 만들도록 credits.json 내용을 해시에 포함
+    const hash = await hashInputs([
+      JSON.stringify(script.thumbnail),
+      script.title,
+      { file: p.creditsFile },
+      JSON.stringify(job.profile.theme),
+    ]);
     if (!opts.force && (await canSkipStage(job.id, "thumbnail", hash))) {
       await log("썸네일: skip (입력 동일)");
       return setStage(job, "thumbnail", { status: "done", note: "skip (입력 동일)" });

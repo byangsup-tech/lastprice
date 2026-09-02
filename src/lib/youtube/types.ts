@@ -161,6 +161,9 @@ export interface ResearchReport {
   llmRerank: "on" | "no-key" | "error" | "off";
 }
 
+/** 리서치 API 응답 — 캐시 상태 포함 */
+export type ResearchResponse = ResearchReport & { cacheStatus: "live" | "stale" };
+
 export interface Topic {
   title: string;
   angle?: string;

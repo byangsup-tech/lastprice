@@ -130,6 +130,12 @@ export default function InsuranceDashboardPage() {
           >
             📊 위험률 통계
           </Link>
+          <Link
+            href="/youtube"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-teal-500 hover:text-teal-700"
+          >
+            🎬 유튜브 스튜디오
+          </Link>
           <button
             onClick={() => void reload()}
             disabled={loading}
