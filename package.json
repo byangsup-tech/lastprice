@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "crawl": "tsx scripts/crawl.ts"
+    "crawl": "tsx scripts/crawl.ts",
+    "yt": "tsx scripts/youtube.ts",
+    "test": "tsx --test \"src/lib/youtube/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

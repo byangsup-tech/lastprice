@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
     "/api/daycares/**": ["./data/daycares/*.json", "./data/meta.json"],
     "/api/daycares/*/history": ["./data/history/*.json", "./data/meta.json"],
   },
+  // 유튜브 파이프라인의 네이티브/바이너리 의존성은 번들링하지 않고 Node require로 로드
+  // (playwright-core는 Next 기본 외부 패키지 목록에 이미 포함)
+  serverExternalPackages: ["@ffmpeg-installer/ffmpeg", "msedge-tts"],
 };
 
 export default nextConfig;

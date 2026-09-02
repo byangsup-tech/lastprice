@@ -42,3 +42,9 @@ next-env.d.ts
 
 # daycare data cache
 .cache/
+
+# youtube longform pipeline artifacts (영상·음성·프레임은 커밋하지 않음)
+content/youtube/jobs/*
+!content/youtube/jobs/.gitkeep
+content/youtube/research-latest.json
+content/youtube/used-topics.json
