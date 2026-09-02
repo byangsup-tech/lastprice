@@ -69,7 +69,7 @@ test("템플릿 대본이 검증을 통과하고 구조가 올바르다", () => 
 test("데모 대본 — 6장면 이상, 약 1분", () => {
   const script = demoScript(DEFAULT_PROFILE);
   assert.ok(script.scenes.length >= 6);
-  assert.ok(script.estimatedMinutes >= 0.8 && script.estimatedMinutes <= 2.5, String(script.estimatedMinutes));
+  assert.ok(script.estimatedMinutes >= 0.6 && script.estimatedMinutes <= 2.5, String(script.estimatedMinutes));
 });
 
 test("validateScript — 정규화: 긴 나레이션 분할, 태그 제한, 레이아웃 강등, 꺾쇠 제거", () => {

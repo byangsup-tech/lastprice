@@ -15,8 +15,15 @@ import { clampText, cleanNarration, splitSentences } from "../util";
  * - validateScript: LLM/템플릿 출력(LlmScriptOutput) → Script (장면 평탄화, id 부여, 길이 클램프)
  */
 
-/** 한국어 TTS 분당 글자 수 (Edge +5% 기준, 공백 포함) */
-export const CHARS_PER_MINUTE = 330;
+/** 한국어 TTS 분당 글자 수 (Edge ko-KR +5% 실측 ≈ 400자/분, 공백 포함) */
+export const CHARS_PER_MINUTE = 400;
+
+/** 보이스 속도("+5%")를 반영한 분당 글자 수 */
+export function charsPerMinute(rate?: string): number {
+  const m = /^([+-]?\d{1,3})%$/.exec((rate ?? "").trim());
+  const pct = m ? Number(m[1]) : 5;
+  return Math.round(383 * (1 + pct / 100));
+}
 
 export const LIMITS = {
   titleMax: 100,

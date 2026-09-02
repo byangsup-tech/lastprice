@@ -45,7 +45,7 @@ test("buildCaptions — 문장 단위 분리, 겹침 없음, 단조 증가", () 
     assert.equal(c.index, i + 1);
     assert.ok(c.endMs > c.startMs);
     assert.ok(c.text.split("\n").length <= 2);
-    for (const line of c.text.split("\n")) assert.ok(line.length <= 22 + 8, line);
+    for (const line of c.text.split("\n")) assert.ok(line.length <= 20 + 8, line);
     if (i > 0) assert.ok(c.startMs >= caps[i - 1].endMs, `overlap at ${i}`);
   }
   // 두 번째 장면 캡션은 장면 시작 오프셋 이후

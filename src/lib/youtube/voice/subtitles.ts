@@ -3,7 +3,7 @@ import { formatSrtTime } from "../util";
 
 /**
  * 단어 타이밍 → 자막 캡션.
- * - 문장 종결 부호(. ? ! …)에서 끊고, 한 줄 maxChars(한글 기준 22자) 초과 시 줄바꿈, 최대 2줄
+ * - 문장 종결 부호(. ? ! …)에서 끊고, 한 줄 maxChars(한글 기준 20자) 초과 시 줄바꿈, 최대 2줄
  * - 캡션 길이 minDurationMs~maxDurationMs, 서로 겹치지 않게 (다음 캡션 시작 − 40 ms)
  * - 오프셋 = 장면 startMs + 단어 startMs
  */
@@ -18,7 +18,7 @@ export interface CaptionOptions {
 }
 
 const DEFAULTS: Required<CaptionOptions> = {
-  maxChars: 22,
+  maxChars: 20,
   maxLines: 2,
   maxDurationMs: 4500,
   minDurationMs: 800,

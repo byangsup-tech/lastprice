@@ -236,7 +236,10 @@ export interface SceneAudio {
   sceneId: string;
   /** 절대 경로 */
   file: string;
+  /** 사용할 길이 = min(파일 길이, 마지막 단어 끝 + 250ms) — 꼬리 무음 제거 */
   durationMs: number;
+  /** 원본 파일 길이 */
+  fileDurationMs?: number;
   words: WordTiming[];
   /** 캐시 무효화용 나레이션 해시 */
   narrationHash?: string;
@@ -297,6 +300,8 @@ export interface JobOutputs {
   videoPath?: string;
   durationMs?: number;
   thumbnailPath?: string;
+  /** 음성 단계 실측 분당 글자 수 */
+  measuredCharsPerMinute?: number;
   youtubeVideoId?: string;
   youtubeUrl?: string;
 }
@@ -309,6 +314,8 @@ export interface JobOptions {
   /** ISO 8601 — 설정 시 privacy는 private이어야 함 (유튜브 규칙) */
   publishAt?: string;
   visualMode?: VisualMode;
+  /** 하단 진행 바 (기본 true) */
+  progressBar?: boolean;
 }
 
 export interface Job {
