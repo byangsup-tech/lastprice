@@ -323,11 +323,13 @@ async function cmdRun(flags: Args["flags"]): Promise<void> {
     console.error("--job <id> 또는 --auto가 필요합니다");
     return usage();
   }
-  if (privacy || publishAt || upload) {
+  const noBar = flagBool(flags, "no-bar");
+  if (privacy || publishAt || upload || noBar) {
     await updateJobOptions(jobId, {
       ...(privacy ? { privacy } : {}),
       ...(publishAt ? { publishAt, privacy: "private" as const } : {}),
       ...(upload ? { upload: true } : {}),
+      ...(noBar ? { progressBar: false } : {}),
     });
   }
   await runAndReport(jobId, { from, to, force, upload, privacy, publishAt });

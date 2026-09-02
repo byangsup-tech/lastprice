@@ -269,7 +269,9 @@ const stageImpl: Record<StageKey, StageFn> = {
       await log("업로드: 건너뜀 (--upload 미지정)");
       return setStage(job, "upload", { status: "skipped", note: "--upload 미지정" });
     }
-    if (!(await fileExists(p.finalVideo))) throw new Error("final.mp4가 없습니다 — 영상 합성 단계를 먼저 실행하세요");
+    if (job.stages.render.status !== "done" || !(await fileExists(p.finalVideo))) {
+      throw new Error("영상 합성이 완료되지 않았습니다 — render 단계를 먼저 (다시) 실행하세요");
+    }
     const privacy = opts.privacy ?? job.options.privacy;
     const publishAt = opts.publishAt ?? job.options.publishAt;
     const hash = await hashInputs([{ file: p.finalVideo }, { file: p.metadataFile }, privacy, publishAt ?? ""]);

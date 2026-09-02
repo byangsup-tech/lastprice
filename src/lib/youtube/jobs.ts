@@ -88,6 +88,7 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
       privacy: input.options?.privacy ?? "private",
       publishAt: input.options?.publishAt,
       visualMode: input.options?.visualMode,
+      progressBar: input.options?.progressBar,
     },
     demo: input.demo || undefined,
   };

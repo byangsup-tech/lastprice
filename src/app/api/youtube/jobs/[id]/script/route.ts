@@ -1,3 +1,4 @@
+import { promises as fs } from "fs";
 import { NextResponse } from "next/server";
 import {
   loadJob,
@@ -71,6 +72,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     status: "done",
     note: `대시보드에서 편집·저장 — ${script.scenes.length}장면 · ${scriptChars(script)}자 · 예상 ${script.estimatedMinutes}분`,
   });
+  // 이전 대본으로 만든 영상·썸네일은 더 이상 유효하지 않다 — 산출물 참조와 파일을 지워 잘못 업로드되지 않게
+  const stale = [p.finalVideo, p.thumbnailPng, p.thumbnailJpg];
+  await Promise.all(stale.map((f) => fs.rm(f, { force: true }).catch(() => undefined)));
+  delete job.outputs.videoPath;
+  delete job.outputs.durationMs;
+  delete job.outputs.thumbnailPath;
+  delete job.outputs.youtubeVideoId;
+  delete job.outputs.youtubeUrl;
   const updated = await resetStagesAfter(job, "script");
   return NextResponse.json({ job: updated, script });
 }
