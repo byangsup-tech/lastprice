@@ -34,9 +34,15 @@ export async function readJsonFile<T>(file: string): Promise<T | null> {
 
 export async function writeJsonFile(file: string, data: unknown): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}`;
-  await fs.writeFile(tmp, JSON.stringify(data, null, 2));
-  await fs.rename(tmp, file);
+  // 같은 프로세스(Next 서버)에서 동시 쓰기가 겹쳐도 충돌하지 않도록 호출마다 고유한 임시 이름
+  const tmp = `${file}.tmp-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await fs.writeFile(tmp, JSON.stringify(data, null, 2));
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => undefined);
+    throw err;
+  }
 }
 
 export async function fileExists(file: string): Promise<boolean> {
@@ -192,7 +198,7 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-/** 잠금이 이 시간보다 오래되면 프로세스가 살아 있어도 비정상으로 간주 */
+/** 잠금이 이 시간보다 오래되면 경고 로그 (프로세스가 살아 있으면 잠금은 유지) */
 const LOCK_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
 interface LockInfo {
@@ -230,14 +236,32 @@ async function reconcileStaleRun(jobId: string): Promise<void> {
   if (changed) await saveJob(job);
 }
 
-/** 실행 중인 다른 프로세스가 있으면 그 pid를, 아니면 null (죽은 잠금은 정리) */
+/** 잠금 파일만 읽어 살아 있는 소유자 pid를 반환 (부수효과 없음 — GET 라우트용) */
+export async function peekLock(jobId: string): Promise<{ pid: number; ageMs: number } | null> {
+  const p = jobPaths(jobId);
+  const raw = await fs.readFile(p.lockFile, "utf-8").catch(() => null);
+  if (!raw) return null;
+  const info = parseLock(raw);
+  if (!info || info.pid <= 0 || !pidAlive(info.pid)) return null;
+  const ageMs = info.startedAt ? Math.max(0, Date.now() - Date.parse(info.startedAt)) : 0;
+  return { pid: info.pid, ageMs };
+}
+
+/**
+ * 실행 중인 다른 프로세스가 있으면 그 pid를, 아니면 null.
+ * 소유 프로세스가 죽은 잠금은 정리하고 running 단계를 failed로 되돌린다 (쓰기 경로에서만 호출).
+ * 살아 있는 프로세스의 잠금은 오래됐어도 유지한다 (긴 렌더·업로드 중 이중 실행 방지).
+ */
 export async function lockHolder(jobId: string): Promise<number | null> {
   const p = jobPaths(jobId);
   const raw = await fs.readFile(p.lockFile, "utf-8").catch(() => null);
   if (!raw) return null;
   const info = parseLock(raw);
-  const age = info?.startedAt ? Date.now() - Date.parse(info.startedAt) : 0;
-  if (info && info.pid > 0 && pidAlive(info.pid) && age < LOCK_MAX_AGE_MS) return info.pid;
+  if (info && info.pid > 0 && pidAlive(info.pid)) {
+    const age = info.startedAt ? Date.now() - Date.parse(info.startedAt) : 0;
+    if (age >= LOCK_MAX_AGE_MS) console.warn(`[youtube] 작업 ${jobId} 잠금이 ${Math.round(age / 3600000)}시간째 유지 중 (pid ${info.pid})`);
+    return info.pid;
+  }
   await fs.rm(p.lockFile, { force: true });
   await reconcileStaleRun(jobId);
   return null;
@@ -264,8 +288,9 @@ export async function acquireLock(jobId: string): Promise<() => Promise<void>> {
   };
 }
 
+/** 읽기 전용 실행 여부 (잠금 정리 없음) */
 export async function isRunning(jobId: string): Promise<boolean> {
-  return (await lockHolder(jobId)) !== null;
+  return (await peekLock(jobId)) !== null;
 }
 
 // ── 단계 입력 해시 매니페스트 (idempotent skip) ───────────────

@@ -1,4 +1,5 @@
 import type { EnvStatus } from "@/lib/youtube/types";
+import DashboardTokenButton from "./DashboardTokenButton";
 
 type Tone = "ok" | "warn" | "off" | "bad";
 
@@ -83,7 +84,9 @@ function chips(s: EnvStatus): Chip[] {
       label: "로컬 실행",
       value: s.localRunAllowed ? "가능" : "불가 (CLI 사용)",
       tone: s.localRunAllowed ? "ok" : "off",
-      title: s.localRunAllowed ? "대시보드에서 파이프라인을 실행할 수 있습니다" : "서버리스 환경이거나 YT_ALLOW_LOCAL_RUN=0",
+      title: s.localRunAllowed
+        ? "대시보드에서 파이프라인을 실행할 수 있습니다"
+        : "서버리스이거나 프로덕션 기본값(YT_ALLOW_LOCAL_RUN=1로 허용) 또는 YT_ALLOW_LOCAL_RUN=0",
     },
   ];
 }
@@ -117,6 +120,7 @@ export default function EnvStatusStrip({ status, loading, error }: Props) {
             <span className="max-w-[180px] truncate">{c.value}</span>
           </span>
         ))}
+        <DashboardTokenButton required={status.dashboardTokenRequired} />
       </div>
     </div>
   );

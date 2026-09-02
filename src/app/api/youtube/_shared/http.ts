@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
+import { dashboardToken } from "@/lib/youtube/config";
 import type { LlmScene, LlmScriptOutput } from "@/lib/youtube/script/schema";
 import {
   STAGES,
@@ -30,6 +32,59 @@ export function isServerless(): boolean {
 
 export const SERVERLESS_WRITE_ERROR =
   "서버리스 환경에서는 작업을 생성할 수 없습니다 — 로컬 CLI를 사용하세요";
+
+export const DASHBOARD_TOKEN_HEADER = "x-yt-token";
+
+/**
+ * 쓰기·실행 라우트 보호 — YT_DASHBOARD_TOKEN이 설정돼 있으면 같은 값의 x-yt-token 헤더가 있어야 한다.
+ * (설정이 없으면 로컬 전용으로 간주하고 통과) 통과 시 null, 아니면 401 응답.
+ */
+export function requireDashboardToken(req: Request): NextResponse | null {
+  const expected = dashboardToken();
+  if (!expected) return null;
+  const given = req.headers.get(DASHBOARD_TOKEN_HEADER) ?? "";
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return jsonError("대시보드 토큰이 필요합니다 (YT_DASHBOARD_TOKEN) — 상태 스트립의 🔑 토큰 설정", 401);
+  }
+  return null;
+}
+
+export const MAX_JSON_BODY = 2 * 1024 * 1024;
+
+/**
+ * JSON 본문을 상한(기본 2 MB)까지만 읽는다. 초과·비JSON이면 오류 문자열 반환.
+ * content-length가 없는 청크 전송도 바이트를 세며 중단한다.
+ */
+export async function readJsonBody(
+  req: Request,
+  maxBytes = MAX_JSON_BODY,
+): Promise<{ ok: true; value: unknown } | { ok: false; status: number; error: string }> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    return { ok: false, status: 413, error: `본문이 너무 큽니다 (최대 ${Math.round(maxBytes / 1024 / 1024)}MB)` };
+  }
+  if (!req.body) return { ok: false, status: 400, error: "본문이 비어 있습니다" };
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return { ok: false, status: 413, error: `본문이 너무 큽니다 (최대 ${Math.round(maxBytes / 1024 / 1024)}MB)` };
+    }
+    chunks.push(value);
+  }
+  try {
+    return { ok: true, value: JSON.parse(Buffer.concat(chunks).toString("utf8")) };
+  } catch {
+    return { ok: false, status: 400, error: "JSON 본문을 해석할 수 없습니다" };
+  }
+}
 
 // ── Range ────────────────────────────────────────────────────
 
@@ -182,11 +237,16 @@ export function looksLikeScript(raw: unknown): raw is Script {
  * - 챕터 제목은 script.chapters 기준 (범위 밖 chapterIndex는 가장 가까운 챕터로)
  */
 export function scriptToLlmOutput(script: Script): LlmScriptOutput {
-  const scenes = script.scenes ?? [];
-  const chapters = (script.chapters ?? []).map((c) => ({
-    title: typeof c.title === "string" ? c.title : "",
-    scenes: [] as LlmScene[],
-  }));
+  // 대시보드·외부 클라이언트가 보낸 형태를 신뢰하지 않는다 — 배열·객체가 아니면 빈 값으로
+  const scenes = (Array.isArray(script.scenes) ? script.scenes : []).filter(
+    (sc): sc is Scene => !!sc && typeof sc === "object",
+  );
+  const chapters = (Array.isArray(script.chapters) ? script.chapters : [])
+    .filter((c): c is { title: string } => !!c && typeof c === "object")
+    .map((c) => ({
+      title: typeof c.title === "string" ? c.title : "",
+      scenes: [] as LlmScene[],
+    }));
   const hookScene = scenes[0];
   const outroScene = scenes.length > 1 ? scenes[scenes.length - 1] : undefined;
   const middle = scenes.slice(1, outroScene ? -1 : undefined);

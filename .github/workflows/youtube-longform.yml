@@ -95,11 +95,11 @@ jobs:
           if [ "${INPUT_UPLOAD:-false}" = "true" ]; then FLAGS+=(--upload); fi
           if [ -n "${INPUT_TOPIC:-}" ]; then
             npm run yt -- new --topic "$INPUT_TOPIC" "${FLAGS[@]}" | tee new.log
-            JOB=$(grep -oE '작업 생성: [A-Za-z0-9._-]+' new.log | awk '{print $3}' | tail -1)
+            JOB=$(grep -oE '작업 생성: [A-Za-z0-9._-]+' new.log | awk '{print $3}' | tail -1 || true)
           else
             npm run yt -- research --refresh --limit 10
             npm run yt -- run --auto --to research --no-refresh "${FLAGS[@]}" | tee auto.log || true
-            JOB=$(grep -oE '작업 [A-Za-z0-9._-]+$' auto.log | tail -1 | awk '{print $2}')
+            JOB=$(grep -oE '작업 [A-Za-z0-9._-]+$' auto.log | tail -1 | awk '{print $2}' || true)
           fi
           if [ -z "${JOB:-}" ]; then echo "적합한 주제가 없어 작업을 만들지 않았습니다"; echo "job=" >> "$GITHUB_OUTPUT"; exit 0; fi
           if ! [[ "$JOB" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{3,79}$ ]]; then echo "job id 파싱 실패: $JOB"; exit 1; fi

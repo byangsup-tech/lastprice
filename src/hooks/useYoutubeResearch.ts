@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { authHeaders } from "./useYoutubeToken";
 import type { ResearchReport } from "@/lib/youtube/types";
 
 export interface ResearchResponse extends ResearchReport {
@@ -63,7 +64,7 @@ export function useYoutubeResearch() {
     try {
       const res = await fetch("/api/youtube/research", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({ refresh: true }),
         signal: ctrl.signal,
       });

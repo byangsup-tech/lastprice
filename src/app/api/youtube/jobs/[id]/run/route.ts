@@ -2,10 +2,10 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { loadDotenvOnce, localRunAllowed } from "@/lib/youtube/config";
+import { localRunAllowed } from "@/lib/youtube/config";
 import { loadJob, lockHolder } from "@/lib/youtube/jobs";
 import { isValidJobId, jobPaths } from "@/lib/youtube/paths";
-import { buildRunArgs, jsonError } from "../../../_shared/http";
+import { buildRunArgs, jsonError, readJsonBody, requireDashboardToken } from "../../../_shared/http";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,8 @@ export const runtime = "nodejs";
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isValidJobId(id)) return jsonError("잘못된 작업 id", 400);
-  loadDotenvOnce();
+  const denied = requireDashboardToken(req);
+  if (denied) return denied;
   if (!localRunAllowed()) {
     return jsonError(
       `로컬 환경에서만 실행할 수 있습니다 — CLI를 사용하세요: npm run yt -- run --job ${id}`,
@@ -27,7 +28,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const job = await loadJob(id);
   if (!job) return jsonError("작업을 찾을 수 없습니다", 404);
 
-  const parsed = buildRunArgs(await req.json().catch(() => ({})));
+  const bodyRead = await readJsonBody(req, 64 * 1024);
+  if (!bodyRead.ok) return jsonError(bodyRead.error, bodyRead.status);
+  const parsed = buildRunArgs(bodyRead.value);
   if (!parsed.ok) return jsonError(parsed.error, 400);
 
   const holder = await lockHolder(id);

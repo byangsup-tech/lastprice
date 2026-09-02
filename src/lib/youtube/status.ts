@@ -1,4 +1,5 @@
 import {
+  dashboardTokenRequired,
   hasAnthropicKey,
   hasElevenLabsKey,
   hasNaverKeys,
@@ -50,6 +51,7 @@ export async function buildEnvStatus(opts: { ensureFonts?: boolean } = {}): Prom
     ttsVoice: ttsVoice(profile),
     visualMode: resolveVisualMode(undefined, profile),
     localRunAllowed: localRunAllowed(),
+    dashboardTokenRequired: dashboardTokenRequired(),
     checkedAt: new Date().toISOString(),
   };
 }
@@ -70,7 +72,8 @@ export function describeEnvStatus(s: EnvStatus): string[] {
   lines.push(`  ${ok(s.keys.anthropic)} ANTHROPIC_API_KEY   ${ok(s.keys.pexels)} PEXELS_API_KEY   ${ok(s.keys.youtubeData)} YOUTUBE_API_KEY`);
   lines.push(`  ${ok(s.keys.naver)} NAVER_CLIENT_ID/SECRET   ${ok(s.keys.youtubeUpload)} YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN (업로드)`);
   lines.push(`  ${ok(s.keys.openaiTts)} OPENAI_API_KEY (TTS 대안)   ${ok(s.keys.elevenlabs)} ELEVENLABS_API_KEY (TTS 대안)`);
-  lines.push(`대시보드 로컬 실행: ${s.localRunAllowed ? "가능" : "불가 (서버리스/비활성) — CLI 사용"}`);
+  lines.push(`대시보드 로컬 실행: ${s.localRunAllowed ? "가능" : "불가 (서버리스/프로덕션 기본값) — CLI 사용 또는 YT_ALLOW_LOCAL_RUN=1"}`);
+  lines.push(`대시보드 쓰기 보호: ${s.dashboardTokenRequired ? "YT_DASHBOARD_TOKEN 필요" : "토큰 없음 (로컬 전용 권장 — 외부 노출 시 YT_DASHBOARD_TOKEN 설정)"}`);
   const fixes: string[] = [];
   if (!s.tools.ffmpeg.ok) fixes.push("ffmpeg: `npm i @ffmpeg-installer/ffmpeg` 또는 시스템 설치 후 FFMPEG_PATH 설정");
   if (!s.tools.chromium.ok) fixes.push("Chromium: `npx playwright-core install chromium` 또는 CHROMIUM_PATH 설정");

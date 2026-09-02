@@ -61,16 +61,16 @@ export function estimateCompetition(views: number[]): CompetitionEstimate {
   };
 }
 
-function searchUrl(q: string, key: string): string {
+function searchUrl(q: string): string {
   const publishedAfter = new Date(Date.now() - 30 * 24 * 3_600_000).toISOString();
   return (
     `${API}/search?part=snippet&type=video&regionCode=KR&relevanceLanguage=ko&order=viewCount` +
-    `&publishedAfter=${encodeURIComponent(publishedAfter)}&maxResults=10&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`
+    `&publishedAfter=${encodeURIComponent(publishedAfter)}&maxResults=10&q=${encodeURIComponent(q)}`
   );
 }
 
-function videosUrl(ids: string[], key: string): string {
-  return `${API}/videos?part=statistics,contentDetails&id=${encodeURIComponent(ids.join(","))}&key=${encodeURIComponent(key)}`;
+function videosUrl(ids: string[]): string {
+  return `${API}/videos?part=statistics,contentDetails&id=${encodeURIComponent(ids.join(","))}`;
 }
 
 /** 후보 제목별 경쟁도·수요 측정 (키 없으면 빈 배열) */
@@ -80,8 +80,8 @@ export async function fetchYoutubeStats(titles: string[]): Promise<RawSignal[]> 
   const list = [...new Set(titles.map((t) => t.trim()).filter(Boolean))].slice(0, MAX_QUERIES);
   const results = await Promise.allSettled(
     list.map(async (title): Promise<RawSignal> => {
-      const ids = parseSearchIds(await fetchJson<unknown>(searchUrl(title, key), {}, SOURCE_TIMEOUT_MS));
-      const views = ids.length ? parseViewCounts(await fetchJson<unknown>(videosUrl(ids, key), {}, SOURCE_TIMEOUT_MS)) : [];
+      const ids = parseSearchIds(await fetchJson<unknown>(searchUrl(title), { headers: { "x-goog-api-key": key } }, SOURCE_TIMEOUT_MS));
+      const views = ids.length ? parseViewCounts(await fetchJson<unknown>(videosUrl(ids), { headers: { "x-goog-api-key": key } }, SOURCE_TIMEOUT_MS)) : [];
       const est = estimateCompetition(views);
       return {
         source: "youtube-data",
@@ -124,6 +124,7 @@ export async function fetchChannelRecentTitles(): Promise<string[]> {
   if (!key || !channelId) return [];
   const url =
     `${API}/search?part=snippet&type=video&order=date&maxResults=50` +
-    `&channelId=${encodeURIComponent(channelId)}&key=${encodeURIComponent(key)}`;
-  return parseChannelTitles(await fetchJson<unknown>(url, {}, SOURCE_TIMEOUT_MS));
+    `&channelId=${encodeURIComponent(channelId)}`;
+  // API 키는 URL이 아니라 헤더로 — 오류 메시지·로그·리포트에 키가 남지 않게
+  return parseChannelTitles(await fetchJson<unknown>(url, { headers: { "x-goog-api-key": key } }, SOURCE_TIMEOUT_MS));
 }

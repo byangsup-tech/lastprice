@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { loadDotenvOnce, loadProfile } from "@/lib/youtube/config";
+import { loadProfile } from "@/lib/youtube/config";
 import { createJob, listJobs, summarizeJob } from "@/lib/youtube/jobs";
 import { candidateToTopic, loadLatestReport } from "@/lib/youtube/research/collect";
 import type { JobSummary, Topic } from "@/lib/youtube/types";
-import { isServerless, jsonError, parseCreateJobBody, SERVERLESS_WRITE_ERROR } from "../_shared/http";
+import {
+  isServerless,
+  jsonError,
+  parseCreateJobBody,
+  readJsonBody,
+  requireDashboardToken,
+  SERVERLESS_WRITE_ERROR,
+} from "../_shared/http";
 
 export const runtime = "nodejs";
 
@@ -21,9 +28,11 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   if (isServerless()) return jsonError(SERVERLESS_WRITE_ERROR, 403);
-  loadDotenvOnce();
-  const raw = await req.json().catch(() => null);
-  const parsed = parseCreateJobBody(raw);
+  const denied = requireDashboardToken(req);
+  if (denied) return denied;
+  const body = await readJsonBody(req, 64 * 1024);
+  if (!body.ok) return jsonError(body.error, body.status);
+  const parsed = parseCreateJobBody(body.value);
   if (!parsed.ok) return jsonError(parsed.error, 400);
 
   let topic: Topic;

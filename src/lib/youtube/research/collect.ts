@@ -1,5 +1,5 @@
 import { getCached } from "@/lib/insurance/cache";
-import { hasNaverKeys, hasYoutubeDataKey, loadDotenvOnce } from "../config";
+import { hasNaverKeys, hasYoutubeDataKey } from "../config";
 import { isTopicUsed, readJsonFile, writeJsonFile } from "../jobs";
 import { RESEARCH_LATEST_FILE } from "../paths";
 import type {
@@ -212,7 +212,6 @@ export async function runResearch(
   profile: ChannelProfile,
   opts: ResearchOptions = {},
 ): Promise<ResearchReport & { cacheStatus: "live" | "stale" }> {
-  loadDotenvOnce();
   const log = opts.log ?? (() => {});
   const limit = Math.max(1, Math.floor(opts.limit ?? DEFAULT_LIMIT));
   const key = researchCacheKey(profile);
@@ -259,8 +258,26 @@ export function selectAutoTopic(
 }
 
 /** 후보 → 작업 주제 (LLM 제안 제목이 있으면 그것을 제목으로, 원 키워드는 keywords에 보존) */
+/** 뉴스 헤드라인 정리 — " - 매체", "(종합)", "[단독]" 같은 꼬리·머리표 제거 */
+export function cleanHeadline(title: string): string {
+  return title
+    .replace(/\s+-\s+[^-]+$/, "")
+    .replace(/\[[^\]]{1,12}\]/g, "")
+    .replace(/\((종합|속보|단독|영상|포토|르포)\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * 후보 → 주제. LLM 제안 제목이 있으면 그것을, 없고 구글 뉴스 클러스터뿐이면(키워드 나열식 제목)
+ * 가장 최근 헤드라인을 정리해 제목으로 쓴다 — "보험 소상공인 청년" 대신 실제 기사 제목이 대본 주제로 더 낫다.
+ */
 export function candidateToTopic(c: TopicCandidate): Topic {
-  const title = c.suggestedTitle?.trim() || c.title;
+  const onlyNewsCluster =
+    c.sources.length > 0 && c.sources.every((s) => s.source === "google-news" || s.source === "naver-news");
+  const headline = onlyNewsCluster && c.news[0] ? cleanHeadline(c.news[0].title) : "";
+  const title =
+    c.suggestedTitle?.trim() || (headline.length >= 8 && headline.length <= 80 ? headline : c.title);
   const keywords = [...new Set([c.title, ...c.keywords].map((k) => k.trim()).filter(Boolean))].slice(0, 10);
   const urls = new Set<string>();
   for (const s of c.sources) if (s.url && !s.url.includes("suggestqueries.google.com")) urls.add(s.url);

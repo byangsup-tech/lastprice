@@ -229,6 +229,8 @@ ubuntu 러너가 ffmpeg·Noto CJK·Chromium을 설치하고 전체 파이프라�
 ## 한계와 주의
 
 - 영상 합성은 로컬 CLI나 GitHub Actions에서만 실행됩니다. Vercel 등 서버리스 배포에서는 대시보드가 읽기 전용입니다.
+- 대시보드는 로컬 도구로 설계됐습니다. `next start`(프로덕션)에서는 `YT_ALLOW_LOCAL_RUN=1`을 명시해야 대시보드 실행이 켜지고,
+  외부에 노출한다면 `YT_DASHBOARD_TOKEN`을 설정하세요 — 작업 생성·대본 저장·실행·리서치 새로고침에 같은 값의 토큰(상태 스트립 🔑)이 필요해집니다.
 - 템플릿 모드 대본은 구조 검증용 초안입니다. 실제 채널 운영에는 `ANTHROPIC_API_KEY`를 설정하고, 대시보드에서 대본을 검토·수정한 뒤 음성 단계로 넘기세요.
 - Edge TTS는 마이크로소프트의 비공식 엔드포인트를 사용합니다. 서비스 변경 시 `YT_TTS_PROVIDER=openai|elevenlabs`로 전환할 수 있습니다.
 - BGM은 저작권이 확인된 음원만 사용하세요(YouTube 오디오 라이브러리 등). 스톡 사진·영상 출처(Pexels)는 설명문에 자동 표기됩니다.

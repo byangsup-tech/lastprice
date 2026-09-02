@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { authHeaders } from "./useYoutubeToken";
 import type {
   Job,
   JobDetailResponse,
@@ -85,7 +86,7 @@ export function useYoutubeJob(id: string, opts: { poll?: boolean } = {}) {
     async (input: RunInput): Promise<RunResult> => {
       const res = await fetch(`${base}/run`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error(await readError(res));
@@ -103,7 +104,7 @@ export function useYoutubeJob(id: string, opts: { poll?: boolean } = {}) {
     async (script: Script): Promise<SaveScriptResult> => {
       const res = await fetch(`${base}/script`, {
         method: "PUT",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({ script }),
       });
       const json = (await res.json().catch(() => ({}))) as {

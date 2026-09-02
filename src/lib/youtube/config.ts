@@ -1,7 +1,6 @@
 import { promises as fs, readFileSync } from "fs";
 import path from "path";
 import { CHANNEL_FILE } from "./paths";
-import { parseDotenv } from "./util";
 import type {
   ChannelProfile,
   LlmProvider,
@@ -11,7 +10,7 @@ import type {
 
 /**
  * 환경변수·채널 프로필 로딩.
- * - Next 라우트에서는 .env.local이 자동 로드되지만 tsx 스크립트는 아니므로 loadDotenvOnce()로 보강
+ * - .env.local 로딩은 dotenv.ts (CLI 전용) — 라우트 번들에 동적 파일 읽기가 들어가지 않게 분리
  * - 프로필은 content/youtube/channel.json — 누락 필드는 기본값으로 채움
  */
 
@@ -40,29 +39,6 @@ export const DEFAULT_PROFILE: ChannelProfile = {
   visualMode: "auto",
   brand: { watermark: "인사이트 채널" },
 };
-
-let dotenvLoaded = false;
-
-/** .env.local → .env 순으로 읽어 미설정 변수만 채운다 (스크립트용, 라우트에서 호출해도 무해) */
-export function loadDotenvOnce(cwd = process.cwd()): void {
-  if (dotenvLoaded) return;
-  dotenvLoaded = true;
-  // turbopackIgnore: 동적 경로를 번들 트레이싱에서 제외 (프로젝트 전체가 서버리스 번들에 딸려 들어가는 것을 방지)
-  const files = [
-    path.join(/* turbopackIgnore: true */ cwd, ".env.local"),
-    path.join(/* turbopackIgnore: true */ cwd, ".env"),
-  ];
-  for (const file of files) {
-    try {
-      const parsed = parseDotenv(readFileSync(file, "utf-8"));
-      for (const [k, v] of Object.entries(parsed)) {
-        if (process.env[k] === undefined) process.env[k] = v;
-      }
-    } catch {
-      // 파일 없음 — 정상
-    }
-  }
-}
 
 function env(name: string): string | undefined {
   const v = process.env[name];
@@ -114,15 +90,31 @@ export function resolveVisualMode(
   return mode;
 }
 
-/** 대시보드에서 파이프라인 실행(자식 프로세스 spawn)을 허용하는 환경인지 */
+/**
+ * 대시보드에서 파이프라인 실행(자식 프로세스 spawn)을 허용하는 환경인지.
+ * 서버리스(VERCEL)는 항상 불가. 프로덕션(NODE_ENV=production)은 YT_ALLOW_LOCAL_RUN=1을 명시해야 허용,
+ * 개발 서버(next dev)는 YT_ALLOW_LOCAL_RUN=0이 아니면 허용.
+ */
 export function localRunAllowed(): boolean {
   if (process.env.VERCEL) return false;
-  return env("YT_ALLOW_LOCAL_RUN") !== "0";
+  const flag = env("YT_ALLOW_LOCAL_RUN");
+  if (flag === "0") return false;
+  if (process.env.NODE_ENV === "production") return flag === "1";
+  return true;
+}
+
+/** 쓰기·실행 라우트 보호용 공유 토큰 (설정 시 x-yt-token 헤더 필수) */
+export function dashboardToken(): string | undefined {
+  return env("YT_DASHBOARD_TOKEN");
+}
+
+export function dashboardTokenRequired(): boolean {
+  return !!dashboardToken();
 }
 
 export function bgmPath(profile?: ChannelProfile): string | undefined {
   const p = env("YT_BGM_PATH") ?? profile?.bgmPath ?? undefined;
-  return p ? path.resolve(p) : undefined;
+  return p ? path.resolve(/* turbopackIgnore: true */ p) : undefined;
 }
 
 // ── 채널 프로필 ──────────────────────────────────────────────
@@ -175,18 +167,19 @@ export function normalizeProfile(raw: unknown): ChannelProfile {
   };
 }
 
-export async function loadProfile(file = CHANNEL_FILE): Promise<ChannelProfile> {
+/** content/youtube/channel.json — 경로를 고정해 번들 트레이서가 프로젝트 전체를 끌어오지 않게 한다 */
+export async function loadProfile(): Promise<ChannelProfile> {
   try {
-    const raw = JSON.parse(await fs.readFile(file, "utf-8")) as unknown;
+    const raw = JSON.parse(await fs.readFile(CHANNEL_FILE, "utf-8")) as unknown;
     return normalizeProfile(raw);
   } catch {
     return { ...DEFAULT_PROFILE };
   }
 }
 
-export function loadProfileSync(file = CHANNEL_FILE): ChannelProfile {
+export function loadProfileSync(): ChannelProfile {
   try {
-    return normalizeProfile(JSON.parse(readFileSync(file, "utf-8")) as unknown);
+    return normalizeProfile(JSON.parse(readFileSync(CHANNEL_FILE, "utf-8")) as unknown);
   } catch {
     return { ...DEFAULT_PROFILE };
   }

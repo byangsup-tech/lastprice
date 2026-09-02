@@ -17,7 +17,8 @@
  */
 import { promises as fs } from "fs";
 import path from "path";
-import { loadDotenvOnce, loadProfile } from "../src/lib/youtube/config";
+import { loadProfile } from "../src/lib/youtube/config";
+import { loadDotenvOnce } from "../src/lib/youtube/dotenv";
 import { createDemoJob } from "../src/lib/youtube/demo";
 import {
   createJob,

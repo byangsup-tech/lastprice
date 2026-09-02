@@ -1,6 +1,7 @@
-import { promises as fs, existsSync, readdirSync } from "fs";
+import { promises as fs, existsSync } from "fs";
 import path from "path";
 import { FONT_CACHE_DIR } from "../paths";
+import { listDir } from "./fsdyn";
 
 /**
  * 한글 폰트 확보.
@@ -28,7 +29,8 @@ let cached: FontSet | null = null;
 
 function findSystemFont(dir: string): FontSet | null {
   try {
-    const files = readdirSync(dir);
+    const files = listDir(dir);
+    if (!files.length) return null;
     const pick = (re: RegExp) => files.find((f) => re.test(f));
     const cjkBold = pick(/NotoSansCJK.*(Bold|-B)\.(ttc|otf|ttf)$/i) ?? pick(/NotoSansCJKkr-Bold\./i);
     const cjkReg = pick(/NotoSansCJK.*(Regular|-R)\.(ttc|otf|ttf)$/i) ?? pick(/NotoSansCJKkr-Regular\./i);

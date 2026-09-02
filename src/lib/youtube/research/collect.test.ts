@@ -90,3 +90,40 @@ test("researchCacheKey: 프로필 리서치 필드에만 의존", () => {
   assert.equal(researchCacheKey({ ...DEFAULT_PROFILE, targetMinutes: 15 }), k1);
   assert.notEqual(researchCacheKey({ ...DEFAULT_PROFILE, keywords: ["주식"] }), k1);
 });
+
+
+test("candidateToTopic — 뉴스 클러스터 후보는 정리된 헤드라인을 제목으로", async () => {
+  const { candidateToTopic, cleanHeadline } = await import("./collect");
+  assert.equal(cleanHeadline("청년 안심 정책보험·소상공인 산재보험료 지원 신설(종합) - 연합뉴스"), "청년 안심 정책보험·소상공인 산재보험료 지원 신설");
+  assert.equal(cleanHeadline("[단독] 실손보험 5세대 출시 - 한국경제"), "실손보험 5세대 출시");
+  const base = {
+    id: "x",
+    keywords: ["보험"],
+    signals: { demand: 0.5, competition: 0.5, fit: 1, freshness: 1 },
+    score: 80,
+    reasons: [],
+  };
+  const clustered = candidateToTopic({
+    ...base,
+    title: "보험 소상공인 청년",
+    sources: [{ source: "google-news", label: "구글 뉴스" }],
+    news: [{ title: "청년 안심 정책보험·소상공인 산재보험료 지원 신설(종합) - 연합뉴스", url: "https://e.com/1" }],
+  });
+  assert.equal(clustered.title, "청년 안심 정책보험·소상공인 산재보험료 지원 신설");
+  assert.ok(clustered.keywords.includes("보험 소상공인 청년"));
+  const suggested = candidateToTopic({
+    ...base,
+    title: "금리 인하",
+    suggestedTitle: "금리 인하, 내 대출은?",
+    sources: [{ source: "suggest-yt", label: "유튜브 자동완성" }, { source: "google-news", label: "구글 뉴스" }],
+    news: [{ title: "기사 - 매체", url: "https://e.com/2" }],
+  });
+  assert.equal(suggested.title, "금리 인하, 내 대출은?");
+  const mixed = candidateToTopic({
+    ...base,
+    title: "연금저축",
+    sources: [{ source: "suggest-yt", label: "유튜브 자동완성" }],
+    news: [{ title: "연금저축 세액공제 확대 - 매체", url: "https://e.com/3" }],
+  });
+  assert.equal(mixed.title, "연금저축");
+});

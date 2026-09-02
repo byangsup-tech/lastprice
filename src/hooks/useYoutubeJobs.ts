@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { authHeaders } from "./useYoutubeToken";
 import type { Job, JobSummary, Privacy, VisualMode } from "@/lib/youtube/types";
 
 export interface CreateJobInput {
@@ -55,7 +56,7 @@ export function useYoutubeJobs() {
     async (input: CreateJobInput): Promise<Job> => {
       const res = await fetch("/api/youtube/jobs", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error(await readError(res));

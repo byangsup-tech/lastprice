@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { loadDotenvOnce } from "@/lib/youtube/config";
 import {
   loadJob,
   loadScript,
@@ -15,6 +14,8 @@ import type { Script } from "@/lib/youtube/types";
 import {
   isServerless,
   jsonError,
+  readJsonBody,
+  requireDashboardToken,
   looksLikeScript,
   scriptToLlmOutput,
   SERVERLESS_WRITE_ERROR,
@@ -31,20 +32,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   if (!isValidJobId(id)) return jsonError("잘못된 작업 id", 400);
   if (isServerless()) return jsonError(SERVERLESS_WRITE_ERROR, 403);
-  loadDotenvOnce();
+  const denied = requireDashboardToken(req);
+  if (denied) return denied;
   const job = await loadJob(id);
   if (!job) return jsonError("작업을 찾을 수 없습니다", 404);
   const holder = await lockHolder(id);
   if (holder) return jsonError(`실행 중에는 대본을 저장할 수 없습니다 (pid ${holder})`, 409, { pid: holder });
 
-  const body = (await req.json().catch(() => null)) as { script?: unknown } | null;
+  const bodyRead = await readJsonBody(req);
+  if (!bodyRead.ok) return jsonError(bodyRead.error, bodyRead.status);
+  const body = bodyRead.value as { script?: unknown } | null;
   const raw = body?.script;
   if (!raw || typeof raw !== "object") return jsonError("script 객체가 필요합니다", 400);
 
   const previous = await loadScript(id);
-  const input = looksLikeScript(raw) ? scriptToLlmOutput(raw) : raw;
   let script: Script;
   try {
+    const input = looksLikeScript(raw) ? scriptToLlmOutput(raw) : raw;
     script = validateScript(input, {
       topic: job.topic,
       profile: job.profile,

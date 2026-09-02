@@ -1,7 +1,8 @@
-import { existsSync, readdirSync } from "fs";
+import { existsSync } from "fs";
 import os from "os";
 import path from "path";
 import { chromium, type Browser } from "playwright-core";
+import { listDir } from "./fsdyn";
 import type { ToolStatus } from "../types";
 
 /**
@@ -15,7 +16,7 @@ let cached: ToolStatus | null = null;
 
 function globChromium(root: string): string | null {
   try {
-    const dirs = readdirSync(root)
+    const dirs = listDir(root)
       .filter((d) => /^chromium-\d+$/.test(d))
       .sort((a, b) => Number(b.slice(9)) - Number(a.slice(9)));
     for (const d of dirs) {

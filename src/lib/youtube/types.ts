@@ -378,6 +378,8 @@ export interface EnvStatus {
   ttsVoice: string;
   visualMode: Exclude<VisualMode, "auto">;
   localRunAllowed: boolean;
+  /** YT_DASHBOARD_TOKEN 설정됨 — 쓰기·실행 요청에 x-yt-token 헤더 필요 */
+  dashboardTokenRequired: boolean;
   checkedAt: string;
 }
 

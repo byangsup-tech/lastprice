@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { loadDotenvOnce } from "../config";
+import { loadDotenvOnce } from "../dotenv";
 import { fileExists, readJsonFile } from "../jobs";
 import { buildInitialMetadata, sanitizeMetadata } from "../metadata";
 import { jobPaths } from "../paths";
