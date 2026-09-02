@@ -65,7 +65,8 @@ export async function readJsonBody(
   if (Number.isFinite(declared) && declared > maxBytes) {
     return { ok: false, status: 413, error: `본문이 너무 큽니다 (최대 ${Math.round(maxBytes / 1024 / 1024)}MB)` };
   }
-  if (!req.body) return { ok: false, status: 400, error: "본문이 비어 있습니다" };
+  // 본문이 없거나 0바이트면 빈 객체 — 모든 필드가 선택인 라우트(run)는 그대로 통과, 나머지는 각자 검증에서 거른다
+  if (!req.body) return { ok: true, value: {} };
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -79,6 +80,7 @@ export async function readJsonBody(
     }
     chunks.push(value);
   }
+  if (total === 0) return { ok: true, value: {} };
   try {
     return { ok: true, value: JSON.parse(Buffer.concat(chunks).toString("utf8")) };
   } catch {

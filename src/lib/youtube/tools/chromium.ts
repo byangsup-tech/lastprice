@@ -27,7 +27,7 @@ function globChromium(root: string): string | null {
         "chrome-win/chrome.exe",
       ]) {
         const p = `${root}/${d}/${rel}`;
-        if (existsSync(p)) return p;
+        if (existsSync(/* turbopackIgnore: true */ p)) return p;
       }
     }
   } catch {
@@ -39,14 +39,14 @@ function globChromium(root: string): string | null {
 export function resolveChromium(): ToolStatus {
   if (cached) return cached;
   const explicit = process.env.CHROMIUM_PATH?.trim();
-  if (explicit && existsSync(explicit)) {
+  if (explicit && existsSync(/* turbopackIgnore: true */ explicit)) {
     cached = { ok: true, path: explicit };
     return cached;
   }
   // playwright-core가 아는 기본 경로 (npx playwright-core install chromium 후)
   try {
     const p = chromium.executablePath();
-    if (p && existsSync(p)) {
+    if (p && existsSync(/* turbopackIgnore: true */ p)) {
       cached = { ok: true, path: p };
       return cached;
     }
@@ -72,7 +72,7 @@ export function resolveChromium(): ToolStatus {
     "/usr/bin/google-chrome-stable",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   ]) {
-    if (existsSync(sys)) {
+    if (existsSync(/* turbopackIgnore: true */ sys)) {
       cached = { ok: true, path: sys };
       return cached;
     }

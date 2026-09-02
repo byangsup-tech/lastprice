@@ -149,7 +149,7 @@ research ──▶ script ──▶ voice ──▶ visuals ──▶ render ─
  유튜브·네이버            ElevenLabs) Chromium    켄번즈·챕터              (예약 공개)
 ```
 
-## 빠른 시작
+## 빠른 시작 (Node 22.3 이상)
 
 ```bash
 npm install

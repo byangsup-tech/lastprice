@@ -1,5 +1,9 @@
-import { spawn, spawnSync } from "child_process";
+import type * as ChildProcess from "child_process";
 import { existsSync } from "fs";
+
+// Turbopack은 child_process.spawn(<동적 인자>)을 보면 프로젝트 전체를 서버리스 번들에 트레이싱한다.
+// 정적 분석이 따라갈 수 없는 경로(process.getBuiltinModule)로 로드해 이를 피한다 (Node ≥ 22.3).
+const { spawn, spawnSync } = process.getBuiltinModule("child_process") as typeof ChildProcess;
 import type { ToolStatus } from "../types";
 
 /**
