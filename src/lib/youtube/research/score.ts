@@ -485,8 +485,16 @@ export function mergeCandidates(raw: RawSignal[]): TopicCandidate[] {
     else kept.push(acc);
   }
   return kept.map((acc) => {
+    // URL이 달라도 제목이 같은 기사(통신사 전재)는 하나만 남긴다
+    const seenTitles = new Set<string>();
     const news = [...acc.news.values()]
       .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
+      .filter((n) => {
+        const key = normalizeKey(n.title.replace(/\s+-\s+[^-]+$/, ""));
+        if (!key || seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      })
       .slice(0, 12);
     const demandBase = acc.demand.length ? Math.max(...acc.demand) : 0.3;
     const demand = clamp01(demandBase + 0.05 * Math.max(0, acc.demandSources.size - 1));

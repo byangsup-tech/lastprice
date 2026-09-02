@@ -47,9 +47,14 @@ let dotenvLoaded = false;
 export function loadDotenvOnce(cwd = process.cwd()): void {
   if (dotenvLoaded) return;
   dotenvLoaded = true;
-  for (const file of [".env.local", ".env"]) {
+  // turbopackIgnore: 동적 경로를 번들 트레이싱에서 제외 (프로젝트 전체가 서버리스 번들에 딸려 들어가는 것을 방지)
+  const files = [
+    path.join(/* turbopackIgnore: true */ cwd, ".env.local"),
+    path.join(/* turbopackIgnore: true */ cwd, ".env"),
+  ];
+  for (const file of files) {
     try {
-      const parsed = parseDotenv(readFileSync(path.join(cwd, file), "utf-8"));
+      const parsed = parseDotenv(readFileSync(file, "utf-8"));
       for (const [k, v] of Object.entries(parsed)) {
         if (process.env[k] === undefined) process.env[k] = v;
       }
