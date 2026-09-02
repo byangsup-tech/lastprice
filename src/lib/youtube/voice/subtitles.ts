@@ -26,7 +26,6 @@ const DEFAULTS: Required<CaptionOptions> = {
 };
 
 const SENTENCE_END = /[.?!…]["'”’)\]]?$/;
-const CLAUSE_END = /[,;:、，]$/;
 
 /** 단어 타이밍이 없을 때 글자 수 비례로 만든다 (OpenAI TTS 등) */
 export function proportionalWords(text: string, durationMs: number): WordTiming[] {

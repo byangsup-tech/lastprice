@@ -77,7 +77,7 @@ export function applyChapters(
 /** 이전 실행이 붙인 타임라인/크레딧 섹션 제거 (재실행 시 중복 방지) */
 export function stripGeneratedSections(description: string): string {
   return description
-    .replace(/\n\n타임라인\n(?:\d+:\d\d(?::\d\d)? [^\n]*\n?)+/g, "")
-    .replace(/\n\n영상 소스: Pexels[^\n]*(?:\n[^\n]*)*$/g, "")
+    .replace(/\n+영상 소스: Pexels[\s\S]*$/g, "")
+    .replace(/\n+타임라인\n(?:\d+:\d\d(?::\d\d)? [^\n]*\n?)+/g, "\n")
     .trim();
 }
