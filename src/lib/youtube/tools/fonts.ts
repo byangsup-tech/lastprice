@@ -27,6 +27,7 @@ const UA = "Mozilla/5.0 (compatible; lastprice-youtube-pipeline/1.0)";
 
 let cached: FontSet | null = null;
 
+// 주의: 여기서는 path.join(dir, …)을 쓰지 않는다 — 동적 인자의 path.join은 Next 번들 트레이서가 프로젝트 전체를 끌어온다
 function findSystemFont(dir: string): FontSet | null {
   try {
     const files = listDir(dir);
@@ -39,8 +40,8 @@ function findSystemFont(dir: string): FontSet | null {
         ok: true,
         dir,
         family: "Noto Sans CJK KR",
-        regularPath: cjkReg ? path.join(dir, cjkReg) : undefined,
-        boldPath: cjkBold ? path.join(dir, cjkBold) : undefined,
+        regularPath: cjkReg ? `${dir}/${cjkReg}` : undefined,
+        boldPath: cjkBold ? `${dir}/${cjkBold}` : undefined,
         source: "system",
       };
     }
@@ -51,8 +52,8 @@ function findSystemFont(dir: string): FontSet | null {
         ok: true,
         dir,
         family: "Noto Sans KR",
-        regularPath: krReg ? path.join(dir, krReg) : undefined,
-        boldPath: krBold ? path.join(dir, krBold) : undefined,
+        regularPath: krReg ? `${dir}/${krReg}` : undefined,
+        boldPath: krBold ? `${dir}/${krBold}` : undefined,
         source: "system",
       };
     }
@@ -62,8 +63,8 @@ function findSystemFont(dir: string): FontSet | null {
         ok: true,
         dir,
         family: "NanumGothic",
-        regularPath: path.join(dir, nanum),
-        boldPath: path.join(dir, pick(/NanumGothicBold\.(ttf|otf)$/i) ?? nanum),
+        regularPath: `${dir}/${nanum}`,
+        boldPath: `${dir}/${pick(/NanumGothicBold\.(ttf|otf)$/i) ?? nanum}`,
         source: "system",
       };
     }

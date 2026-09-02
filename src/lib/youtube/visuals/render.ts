@@ -7,7 +7,7 @@ import { jobPaths } from "../paths";
 import { withBrowser } from "../tools/chromium";
 import { ensureFonts } from "../tools/fonts";
 import type { FramePlan, FramePlanScene, Job, KenBurns, Scene, Script, Timeline, VisualMode } from "../types";
-import { sceneNo } from "../util";
+import { hashId, sceneNo } from "../util";
 import { hasStock, pickStockForScene, type StockCredit } from "./stock";
 import { CARD_HEIGHT, CARD_WIDTH, renderSceneHtml, type TemplateContext, type TemplateFonts } from "./templates";
 
@@ -172,16 +172,44 @@ export async function renderFrames(
         const kenBurns = kenBurnsForIndex(scene.index);
         const imagePath = p.sceneFrame(scene.index);
         const overlayPath = p.sceneOverlay(scene.index);
+        // 카드에 찍히는 내용 전부의 해시 — 대본을 고치면 해당 장면만 다시 렌더된다
+        const contentHash = hashId(
+          JSON.stringify({
+            layout: scene.layout,
+            heading: scene.heading,
+            bullets: scene.bullets,
+            stat: scene.stat,
+            quote: scene.quote,
+            chapterTitle: scene.chapterTitle,
+            chapterIndex: scene.chapterIndex,
+            visualKeywords: scene.visualKeywords,
+            index: scene.index,
+            title: script.title,
+            chapterCount: script.chapters.length,
+            estimatedMinutes: script.estimatedMinutes,
+            theme: job.profile.theme,
+            watermark: baseCtx.watermark,
+            font: fonts.family,
+            mode,
+          }),
+        );
 
-        // 1) 재사용 — 같은 모드의 이전 plan 항목 + 파일 존재
+        // 1) 재사용 — 같은 모드의 이전 plan 항목 + 내용 해시 일치 + 파일 존재
         const old = reusable.get(scene.id);
-        if (old) {
+        if (old && old.contentHash === contentHash) {
           const ok =
             old.kind === "video"
               ? !!old.videoPath && (await fileExists(old.videoPath)) && (await fileExists(overlayPath))
               : await fileExists(imagePath);
           if (ok) {
-            planScenes.push({ ...old, durationMs, kenBurns, imagePath: old.kind === "image" ? imagePath : undefined, overlayPath: old.kind === "video" ? overlayPath : undefined });
+            planScenes.push({
+              ...old,
+              durationMs,
+              kenBurns,
+              contentHash,
+              imagePath: old.kind === "image" ? imagePath : undefined,
+              overlayPath: old.kind === "video" ? overlayPath : undefined,
+            });
             const oc = prevCreditBy.get(scene.id);
             if (oc) credits.push(oc);
             if (old.credit) stockCount++;
@@ -208,6 +236,7 @@ export async function renderFrames(
           planScenes.push({
             sceneId: scene.id,
             kind: "video",
+            contentHash,
             videoPath: stockVideo.path,
             overlayPath,
             durationMs,
@@ -221,7 +250,7 @@ export async function renderFrames(
           const html = renderSceneHtml(scene, { ...baseCtx, bgImagePath: stockPhoto?.path });
           await setCardContent(page, html);
           await page.screenshot({ path: imagePath, type: "png", fullPage: false });
-          const entry: FramePlanScene = { sceneId: scene.id, kind: "image", imagePath, durationMs, kenBurns };
+          const entry: FramePlanScene = { sceneId: scene.id, kind: "image", imagePath, durationMs, kenBurns, contentHash };
           if (stockPhoto) {
             entry.credit = planCredit(stockPhoto.credit);
             credits.push({ provider: "pexels", kind: "photo", sceneId: scene.id, file: stockPhoto.path, ...stockPhoto.credit });

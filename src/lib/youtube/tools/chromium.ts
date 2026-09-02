@@ -1,6 +1,5 @@
 import { existsSync } from "fs";
 import os from "os";
-import path from "path";
 import { chromium, type Browser } from "playwright-core";
 import { listDir } from "./fsdyn";
 import type { ToolStatus } from "../types";
@@ -27,7 +26,7 @@ function globChromium(root: string): string | null {
         "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium",
         "chrome-win/chrome.exe",
       ]) {
-        const p = path.join(root, d, rel);
+        const p = `${root}/${d}/${rel}`;
         if (existsSync(p)) return p;
       }
     }
@@ -56,7 +55,7 @@ export function resolveChromium(): ToolStatus {
   }
   const roots = [
     process.env.PLAYWRIGHT_BROWSERS_PATH?.trim(),
-    path.join(os.homedir(), ".cache", "ms-playwright"),
+    `${os.homedir()}/.cache/ms-playwright`,
     "/opt/pw-browsers",
   ].filter((r): r is string => !!r);
   for (const root of roots) {

@@ -42,6 +42,7 @@ import {
   type StageKey,
   type Timeline,
 } from "./types";
+import { resolveOpenAiVoice } from "./voice/openai";
 import { synthesizeScenes } from "./voice/tts";
 import { renderFrames } from "./visuals/render";
 import { renderThumbnail } from "./visuals/thumbnail";
@@ -139,7 +140,13 @@ const stageImpl: Record<StageKey, StageFn> = {
     const p = jobPaths(job.id);
     const script = await requireScript(job);
     const provider = ttsProvider();
-    const voice = ttsVoice(job.profile);
+    // 공급자별 실제 보이스 — Edge 보이스 이름이 OpenAI/ElevenLabs로 새지 않게
+    const voice =
+      provider === "elevenlabs"
+        ? (process.env.ELEVENLABS_VOICE_ID?.trim() ?? "")
+        : provider === "openai"
+          ? resolveOpenAiVoice(process.env.YT_TTS_VOICE)
+          : ttsVoice(job.profile);
     const rate = job.profile.voiceRate;
     const hash = await hashInputs([{ file: p.scriptFile }, provider, voice, rate]);
     if (!opts.force && (await canSkipStage(job.id, "voice", hash))) {
@@ -148,7 +155,7 @@ const stageImpl: Record<StageKey, StageFn> = {
     }
     const result = await synthesizeScenes(job, script, {
       provider,
-      voice,
+      voice: voice || undefined,
       rate,
       force: opts.force,
       log: (l) => void log(l),
@@ -189,10 +196,18 @@ const stageImpl: Record<StageKey, StageFn> = {
     const script = await requireScript(job);
     const bgm = resolveBgmPath(job.profile);
     const progressBar = job.options.progressBar !== false;
+    // 대본·메타데이터·프레임 이미지 내용까지 해시에 포함 — 대본 편집 후 프레임만 바뀌어도 다시 합성되게
+    const plan = await readJsonFile<FramePlan>(p.framePlanFile);
+    const frameFiles = (plan?.scenes ?? []).flatMap((s) =>
+      [s.imagePath, s.overlayPath, s.videoPath].filter((f): f is string => !!f).map((f) => ({ file: f })),
+    );
     const hash = await hashInputs([
+      { file: p.scriptFile },
+      { file: p.metadataFile },
       { file: p.timelineFile },
       { file: p.framePlanFile },
       { file: p.srtFile },
+      ...frameFiles,
       bgm ?? "",
       fontStatusSync().family,
       String(progressBar),

@@ -208,7 +208,8 @@ async function cmdDoctor(): Promise<void> {
 
 async function cmdResearch(flags: Args["flags"]): Promise<void> {
   const profile = await loadProfile();
-  const limit = Number(flagStr(flags, "limit") ?? 25) || 25;
+  const limitRaw = Number(flagStr(flags, "limit"));
+  const limit = Number.isFinite(limitRaw) && limitRaw >= 1 ? Math.floor(limitRaw) : 25;
   const report = await runResearch(profile, { refresh: flagBool(flags, "refresh"), limit, log });
   if (flagBool(flags, "json")) {
     console.log(JSON.stringify(report, null, 2));
@@ -303,7 +304,8 @@ async function cmdRun(flags: Args["flags"]): Promise<void> {
 
   let jobId = flagStr(flags, "job");
   if (flagBool(flags, "auto")) {
-    const minScore = Number(flagStr(flags, "min-score") ?? 40) || 40;
+    const minScoreRaw = Number(flagStr(flags, "min-score"));
+    const minScore = Number.isFinite(minScoreRaw) ? minScoreRaw : 40;
     const { job, report, reason } = await createAutoJob(undefined, {
       refresh: !flagBool(flags, "no-refresh"),
       minScore,

@@ -284,6 +284,8 @@ export interface FramePlanScene {
   durationMs: number;
   kenBurns: KenBurns;
   credit?: { photographer?: string; url?: string; provider: "pexels" };
+  /** 렌더에 쓰인 장면 내용·테마 해시 — 대본 편집 시 stale 프레임 재사용 방지 */
+  contentHash?: string;
 }
 
 export interface FramePlan {
